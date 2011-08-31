@@ -131,12 +131,23 @@ class Ldap_Query_Result
 	/**
 	 * Gets the results array as it is. Beware that we cannot know the count of the
 	 * entries with a count($result) as Ldap adds some values to the array. Also note
-	 * that this class automatically removes the main count item if set. Use
-	 * Ldap_Query_Result->count() instead
+	 * that the result does not have the main count item by design. Use
+	 * Ldap_Query_Result->count() instead.
 	 */
 	public function result()
 	{
 		return $this->_result;
+	}
+
+	/**
+	 * Gets the results array and formats it according to the given flags.
+	 * Beware that we cannot know the count of the entries with a count($result) as
+	 * Ldap adds some values to the array. Also note that the result does not have
+	 * the main count item by design. Use Ldap_Query_Result->count() instead.
+	 */
+	public function result_format($flags = 0)
+	{
+		return Ldap_Query_Result_Formatter::format($this->_result, $flags);
 	}
 
 	/**
