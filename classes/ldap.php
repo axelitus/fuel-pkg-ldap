@@ -41,6 +41,11 @@ class Ldap
 	protected $_config = array();
 
 	/**
+	 * @var String|Integer contains the name of the instance (string or numeric index)
+	 */
+	protected $_name = '';
+	
+	/**
 	 * @var Resource contains the LDAP link identifier when connected
 	 */
 	protected $_connection = null;
@@ -90,9 +95,9 @@ class Ldap
 			if (is_string($config) && $config != '')
 			{
 				// we were given only the name of the instance
-				$id = $config;
+				$name = $config;
 
-				static::$_instances[$id] = new Ldap();
+				static::$_instances[$name] = new Ldap();
 
 				// set the $config array to an empty array for the _init process
 				$config = array();
@@ -101,7 +106,7 @@ class Ldap
 			else if (is_array($config) && isset($config['name']))
 			{
 				// it's a named instance that we want
-				$id = $config['name'];
+				$name = $config['name'];
 
 				// get rid of the extra value in the config
 				unset($config['name']);
@@ -109,7 +114,7 @@ class Ldap
 				// Create the instance only if we can override it or it does not exist
 				if ($override || !isset(static::$_instances[$id]))
 				{
-					static::$_instances[$id] = new Ldap();
+					static::$_instances[$name] = new Ldap();
 				}
 				else
 				{
@@ -125,22 +130,53 @@ class Ldap
 				// as the items are inserted at the end, we just need to look for the last key
 				// inserted to get the auto-numeric id it generated for the non-named instance
 				$keys = static::get_instance_keys();
-				$id = end($keys);
+				$name = end($keys);
 			}
 
-			// init the Ldap with the custom config or an empty array
-			static::$_instances[$id]->_init($config);
+			// set the Ldap instance name and initialize with the custom config
+			static::$_instances[$name]->_init($name, $config);
 
-			// Set the return value to the id that was generated or the named id that was
-			// given in the config parameter
-			$response = $id;
+			// Set the return value to the generated instance. If we want to know it's name all
+			// we have to do is call the get_name() function. Later on we can get the instance
+			// again by calling the get_instance() function.
+			$response = static::$_instances[$name];
 		}
 		else
 		{
-			// Oh my! We don't have Ldap support
+			// Oh my! We don't have Ldap support. What a bummer!
 			throw new \Fuel_Exception('LDAP is not supported.');
 		}
 
+		return $response;
+	}
+
+	/**
+	 * Checks wetherthere's at least one instance 
+	 */
+	public static function has_instances()
+	{
+		$response = false;
+		
+		if(!empty(static::$_instances))
+		{
+			$response = true;
+		}
+		
+		return $response;
+	}
+	
+	public static function has_instance($name)
+	{
+		$response = false;
+		
+		if(static::has_instances())
+		{
+			if ((is_string($name) && $name != '') || (is_numeric($name) && $name >= 0))
+			{
+				$response = isset(static::$_instances[$name]);
+			}
+		}
+		
 		return $response;
 	}
 
@@ -153,12 +189,13 @@ class Ldap
 	{
 		$response = null;
 
-		if ((is_string($name) && $name != '') || (is_numeric($name) && $name >= 0))
+		if (static::has_instance($name))
 		{
-			$response = ((isset(static::$_instances[$name])) ? static::$_instances[$name] : $response);
+			$response = static::$_instances[$name];
 		}
 		else
 		{
+			// Let's get the default instance
 			$keys = static::get_instance_keys();
 			$name = reset($keys);
 			$response = static::$_instances[$name];
@@ -181,10 +218,13 @@ class Ldap
 	 * Initializes an instances of Ldap. Be warned: use it wiht care and at best only
 	 * on new Ldap instances or you will lose whatever you had in that instance.
 	 */
-	final private function _init($config = array())
+	final private function _init($name, $config = array())
 	{
 		// this sets the instance to a fresh one
 		$this->clean(true);
+		
+		// set the instance name
+		$this->set_name($name);
 
 		// let's see if we have a config given or we just need to use our own
 		$config = (is_array($config) && !empty($config)) ? $config : \Config::load('ldap', true);
@@ -195,7 +235,8 @@ class Ldap
 
 	/**
 	 * Cleans the instance (this means that it unbinds from Ldap server and kills the
-	 * connection)
+	 * connection). The instance name is the only thing that gets not cleaned.
+	 * This is by design, as it could break the functionality.
 	 */
 	final private function clean($clean_config = false)
 	{
@@ -292,6 +333,25 @@ class Ldap
 		}
 
 		return $response;
+	}
+
+	/**
+	 * Sets the instance name
+	 */
+	private final function set_name($name)
+	{
+		if(is_string($name) || is_numeric($name))
+		{
+			$this->_name = $name;
+		}
+	}
+	
+	/**
+	 * Gets the instance name
+	 */
+	public function get_name()
+	{
+		return $this->_name;
 	}
 
 	/**
