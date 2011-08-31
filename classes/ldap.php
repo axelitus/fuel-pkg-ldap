@@ -13,7 +13,7 @@
 namespace Ldap;
 
 /**
- * Ldap
+ * Ldap Package
  *
  * @package     Fuel
  * @subpackage  Ldap
@@ -29,6 +29,8 @@ class Ldap
 	const LDAP_CONTAINER = 'CN';
 	const DEFAULT_PORT = 389;
 	const DEFAULT_SSL_PORT = 636;
+	const LDAP_RESOURCE_LINK = 'ldap link';
+	const LDAP_RESOURCE_RESULT = 'ldap result';
 
 	/**
 	 * @var Array contains references if multiple were loaded
@@ -37,14 +39,16 @@ class Ldap
 
 	/**
 	 * @var Array contains the instance configuration
+	 * TODO: Migrate all config settings to an apropriate Class
 	 */
 	protected $_config = array();
 
 	/**
-	 * @var String|Integer contains the name of the instance (string or numeric index)
+	 * @var String|Integer contains the name of the instance (string or numeric
+	 * index)
 	 */
 	protected $_name = '';
-	
+
 	/**
 	 * @var Resource contains the LDAP link identifier when connected
 	 */
@@ -136,8 +140,10 @@ class Ldap
 			// set the Ldap instance name and initialize with the custom config
 			static::$_instances[$name]->_init($name, $config);
 
-			// Set the return value to the generated instance. If we want to know it's name all
-			// we have to do is call the get_name() function. Later on we can get the instance
+			// Set the return value to the generated instance. If we want to know it's name
+			// all
+			// we have to do is call the get_name() function. Later on we can get the
+			// instance
 			// again by calling the get_instance() function.
 			$response = static::$_instances[$name];
 		}
@@ -151,32 +157,32 @@ class Ldap
 	}
 
 	/**
-	 * Checks wetherthere's at least one instance 
+	 * Checks wetherthere's at least one instance
 	 */
 	public static function has_instances()
 	{
 		$response = false;
-		
-		if(!empty(static::$_instances))
+
+		if (!empty(static::$_instances))
 		{
 			$response = true;
 		}
-		
+
 		return $response;
 	}
-	
+
 	public static function has_instance($name)
 	{
 		$response = false;
-		
-		if(static::has_instances())
+
+		if (static::has_instances())
 		{
 			if ((is_string($name) && $name != '') || (is_numeric($name) && $name >= 0))
 			{
 				$response = isset(static::$_instances[$name]);
 			}
 		}
-		
+
 		return $response;
 	}
 
@@ -222,7 +228,7 @@ class Ldap
 	{
 		// this sets the instance to a fresh one
 		$this->clean(true);
-		
+
 		// set the instance name
 		$this->set_name($name);
 
@@ -336,18 +342,18 @@ class Ldap
 	}
 
 	/**
-	 * Sets the instance name
+	 * Sets the instance's name
 	 */
 	private final function set_name($name)
 	{
-		if(is_string($name) || is_numeric($name))
+		if (is_string($name) || is_numeric($name))
 		{
 			$this->_name = $name;
 		}
 	}
-	
+
 	/**
-	 * Gets the instance name
+	 * Gets the instance's name
 	 */
 	public function get_name()
 	{
@@ -355,11 +361,38 @@ class Ldap
 	}
 
 	/**
-	 * Gets the current instance's config
+	 * Sets the instance's config. Be warned that this action cleans up the LDap
+	 * instance disconnecting un unbinding the connection
 	 */
-	public function get_current_config()
+	public function set_config($config = array())
 	{
-		return $this->_config;
+		$this->clean(true);
+		$this->_config = static::parse_config($config, true);
+	}
+
+	/**
+	 * Gets the current instance's config array or a config value
+	 */
+	public function get_config($key = '')
+	{
+		$response = null;
+		if (is_string($key) && $key != '')
+		{
+			$response = ((isset($this->_config[$key])) ? $this->_config[$key] : $response);
+		}
+		else
+		{
+			$response = $this->_config;
+		}
+		return $response;
+	}
+
+	/**
+	 * Gets the current instance's connection
+	 */
+	public function get_connection()
+	{
+		return $this->_connection;
 	}
 
 	/**
@@ -430,7 +463,7 @@ class Ldap
 	/**
 	 * Bind to Ldap
 	 */
-	public function bind($anonymous = false)
+	public function bind($anonymous = false, $chain = false)
 	{
 		$response = false;
 
@@ -476,6 +509,20 @@ class Ldap
 			throw new \Fuel_Exception('Cannot bind: there is no connection to LDAP server.');
 		}
 
+		// if we want to chain methods then set the response to this instance
+		$response = (($chain) ? $this : $response);
+
+		return $response;
+	}
+
+	/**
+	 * Generates an Ldap_Query to be executed in the Ldap server
+	 */
+	public function query($filter = '')
+	{
+		$response = Ldap_Query::forge($this);
+		$response->set_filter($filter);
+
 		return $response;
 	}
 
@@ -509,7 +556,7 @@ class Ldap
 	{
 		$response = false;
 
-		if (isset($this->_connection) && is_resource($this->_connection))
+		if (isset($this->_connection) && is_resource($this->_connection) && get_resource_type($this->_connection) == self::LDAP_RESOURCE_LINK)
 		{
 			$response = true;
 		}
@@ -558,7 +605,7 @@ class Ldap
 	/**
 	 * Gets the last Ldap error
 	 */
-	public function error()
+	public function get_error()
 	{
 		$response = null;
 
@@ -621,7 +668,7 @@ class Ldap
 		if ($this->is_connected())
 		{
 			$sr = @ldap_read($this->_connection, null, 'objectClass=*', $attributes);
-			if (is_resource($sr))
+			if (is_resource($sr) && get_resource_type($sr) == self::LDAP_RESOURCE_RESULT)
 			{
 				$response = @ldap_get_entries($this->_connection, $sr);
 			}
