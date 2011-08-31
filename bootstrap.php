@@ -10,6 +10,8 @@
  * @link       http://fuelphp.com
  */
 
+Autoloader::add_namespace('Ldap', __DIR__.'/classes/');
+
 Autoloader::add_core_namespace('Ldap');
 
 Autoloader::add_classes(array(
