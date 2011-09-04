@@ -76,11 +76,8 @@ class Ldap
 	 */
 	public static function ldap_supported()
 	{
-		$response = false;
-		if (function_exists('ldap_connect'))
-		{
-			$response = true;
-		}
+		$response = function_exists('ldap_connect');
+
 		return $response;
 	}
 
@@ -101,7 +98,16 @@ class Ldap
 				// we were given only the name of the instance
 				$name = $config;
 
-				static::$_instances[$name] = new Ldap();
+				// Create the instance only if we can override it or it does not exist
+				if ($override || !isset(static::$_instances[$name]))
+				{
+					static::$_instances[$name] = new Ldap();
+				}
+				else
+				{
+					// We could not override the instance, so return null
+					return $response;
+				}
 
 				// set the $config array to an empty array for the _init process
 				$config = array();
@@ -133,7 +139,7 @@ class Ldap
 
 				// as the items are inserted at the end, we just need to look for the last key
 				// inserted to get the auto-numeric id it generated for the non-named instance
-				$keys = static::get_instance_keys();
+				$keys = static::instance_keys();
 				$name = end($keys);
 			}
 
@@ -141,10 +147,8 @@ class Ldap
 			static::$_instances[$name]->_init($name, $config);
 
 			// Set the return value to the generated instance. If we want to know it's name
-			// all
-			// we have to do is call the get_name() function. Later on we can get the
-			// instance
-			// again by calling the get_instance() function.
+			// all we have to do is call the get_name() function. Later on we can get the
+			// instance again by calling the instance() function.
 			$response = static::$_instances[$name];
 		}
 		else
@@ -187,24 +191,70 @@ class Ldap
 	}
 
 	/**
-	 * Gets an instance by name (or numeric id) or the default instance (the instance
-	 * that's first in the array. Note: be careful as to how PHP manages array, it
-	 * does not order them by keys, they are just hash tables)
+	 * Gets an instance by name (or numeric id) or the default instance if no name is
+	 * given (the instance that's first in the array. Note: be careful as to how PHP
+	 * manages array, it does not order them by keys, they are just hash tables)
 	 */
-	public static function get_instance($name = '')
+	public static function instance($name = '')
 	{
 		$response = null;
 
-		if (static::has_instance($name))
+		// action can take 3 values: named, definst, *anything else* (which results in an
+		// exception)
+		$action = 'exception';
+
+		// let's define the action to take
+		if (is_numeric($name) && $name >= 0)
 		{
-			$response = static::$_instances[$name];
+			// Get the numeric indexed (also named) instance
+			$action = 'named';
 		}
-		else
+		else if (is_string($name))
 		{
-			// Let's get the default instance
-			$keys = static::get_instance_keys();
-			$name = reset($keys);
-			$response = static::$_instances[$name];
+			if ($name == '')
+			{
+				// Get the default instance if there's one
+				$action = 'definst';
+			}
+			else
+			{
+				// Get the named instance
+				$action = 'named';
+			}
+		}
+
+		// do the defined action
+		switch($action)
+		{
+			case 'named':
+				if (static::has_instance($name))
+				{
+					$response = static::$_instances[$name];
+				}
+				else
+				{
+					// throw exception 'There's no instance named that way'
+					throw new Fuel_Exception('An instance named \'' . $name . '\' was not found. Please verify the name.');
+				}
+				break;
+			case 'definst':
+			// Let's get the default instance if there's one
+				if (static::has_instances())
+				{
+					$keys = static::instance_keys();
+					$name = reset($keys);
+					$response = static::$_instances[$name];
+				}
+				else
+				{
+					// throw exception 'Ldap has no instances'
+					throw new \Fuel_Exception('There are no Ldap instances. Try using forge() first to create one.');
+				}
+				break;
+			default:
+			// throw exception 'We can't handle the $name given
+				throw new \Fuel_Exception('The function can only take a string or an integer as input parameter. An input of type: \'' . gettype($name) . '\' was given.');
+				break;
 		}
 
 		return $response;
@@ -213,7 +263,7 @@ class Ldap
 	/**
 	 * Gets an array with all instance keys
 	 */
-	public static function get_instance_keys()
+	public static function instance_keys()
 	{
 		$response = array_keys(static::$_instances);
 
@@ -246,19 +296,7 @@ class Ldap
 	 */
 	final private function clean($clean_config = false)
 	{
-		// if Ldap is binded try to unbind it before so we free resources
-		if ($this->_binded)
-		{
-			try
-			{
-				@ldap_unbind($this->_connection);
-			}
-			catch(Exception $e)
-			{
-				// Do nothing here. This catch is left blank on purpose
-			}
-		}
-
+		$this->unbind();
 		$this->_connection = null;
 		$this->_binded = false;
 		$this->_base_dn = '';
@@ -461,7 +499,7 @@ class Ldap
 	}
 
 	/**
-	 * Bind to Ldap
+	 * Bind to Ldap anonymously or by using the master credentials in configuration
 	 */
 	public function bind($anonymous = false, $chain = false)
 	{
@@ -486,8 +524,7 @@ class Ldap
 				}
 				else
 				{
-					$domain_suffix = (isset($this->_config['domain_suffix']) ? '@' . $this->_config['domain_suffix'] : '');
-					$master_user = $this->_config['connection']['master_user'] . $domain_suffix;
+					$master_id = static::full_qualified_id($this->_config['connection']['master_user'], $this->_config['domain_suffix']);
 					$master_pwd = $this->_config['connection']['master_pwd'];
 				}
 			}
@@ -516,12 +553,83 @@ class Ldap
 	}
 
 	/**
+	 * Bind to Ldap with the given credentials
+	 */
+	public function bind_credentials($username_or_email, $password, $rebind_as_master = true)
+	{
+		$response = false;
+
+		// Are we connected? If not, then try to ensure we have a connection by using the
+		// try_connect parameter
+		if ($this->is_connected(true))
+		{
+			// Prevent anonymous binding by checking if a username and password has been set
+			$full_id = static::full_qualified_id($username_or_email, $this->_config['domain_suffix']);
+			$password = (is_string($password) ? trim($password) : '');
+			if ($full_id != '' && $password != '')
+			{
+				// Bind the damn thing to Ldap with credentials!
+				$response = $this->_binded = @ldap_bind($this->_connection, $full_id, $password);
+				if ($this->_binded)
+				{
+					// Succesful binding! Let's try to get the Base DN!
+					$this->_base_dn = $this->_find_base_dn();
+				}
+
+				if ($rebind_as_master)
+				{
+					$this->bind();
+				}
+			}
+		}
+		else
+		{
+			throw new \Fuel_Exception('Cannot bind: there is no connection to LDAP server.');
+		}
+
+		return $response;
+	}
+
+	public function unbind()
+	{
+		// if Ldap is binded try to unbind it before so we free resources
+		if ($this->_binded)
+		{
+			try
+			{
+				$this->_binded = @ldap_unbind($this->_connection);
+			}
+			catch(Exception $e)
+			{
+				// Do nothing here. This catch is left blank on purpose
+			}
+		}
+
+		return !$this->_binded;
+	}
+
+	/**
 	 * Generates an Ldap_Query to be executed in the Ldap server
 	 */
 	public function query($filter = '')
 	{
 		$response = Ldap_Query::forge($this);
 		$response->set_filter($filter);
+
+		return $response;
+	}
+
+	/**
+	 * Creates an Auth instance. The Auth package must me present. This function will
+	 * try to autoload it if is not already loaded.
+	 */
+	public function auth()
+	{
+		// Try to load Auth package if is not loaded
+		\Fuel::add_package('auth');
+
+		// Create the Auth instance for this Ldap
+		$response = \Auth::forge(array('driver' => 'Ldap\LdapAuth', 'ldap' => $this));
 
 		return $response;
 	}
@@ -671,6 +779,98 @@ class Ldap
 			if (is_resource($sr) && get_resource_type($sr) == self::LDAP_RESOURCE_RESULT)
 			{
 				$response = @ldap_get_entries($this->_connection, $sr);
+			}
+		}
+
+		return $response;
+	}
+
+	public static function full_qualified_id($username_or_email, $domain_suffix = '')
+	{
+		$response = trim($username_or_email);
+		$use_domain_suffix = false;
+
+		// is the username_or_email a string and is not empty?
+		// consider as empty also a string with only n whitespaces
+		if (is_string($response) && $response != '')
+		{
+			// Is there an @ in the username_or_email string?
+			if (($pos = strpos($response, '@')) !== false)
+			{
+				// We have a composited id with an arbitrary suffix
+				// separate the username_or_email string into id and suffix
+				$id = trim(substr($response, 0, $pos));
+				$suffix = trim(substr($response, $pos + 1));
+
+				// is the id part empty?
+				if ($id != '')
+				{
+					// set the response to the id part and begin assembling the full qualified id
+					$response = $id;
+
+					// is the suffix part empty?
+					if ($suffix != '')
+					{
+						// does the suffix part include another @?
+						if (strpos($suffix, '@') === false)
+						{
+							// we can safely build the rest of the full qualified id
+							$response .= '@' . $suffix;
+						}
+						else
+						{
+							throw new \Fuel_Exception('There can only be one @ in the username_or_email string');
+						}
+					}
+					else
+					{
+						$use_domain_suffix = true;
+					}
+				}
+				else
+				{
+					throw new \Fuel_Exception('The id part of the username_or_email string (usually the substring that is before the @) cannot be an empty string');
+				}
+			}
+			else
+			{
+				$use_domain_suffix = true;
+			}
+		}
+		else
+		{
+			throw new \Fuel_Exception('The username_or_email parameter must be a non-empty string');
+		}
+
+		// Let's use the domain_suffix part as needed if it's a non-empty string
+		if ($use_domain_suffix && is_string($domain_suffix) && $domain_suffix != '')
+		{
+			// does the domain_suffix part include an @ or not?
+			if (($pos = strpos($domain_suffix, '@') === false))
+			{
+				// the domain_suffix part does not include an @ so it's safely to build the rest
+				// of the full qualified id
+				$response .= '@' . $domain_suffix;
+			}
+			else if ($pos == 0)
+			{
+				// The domain_suffix includes an @ at the beginning, see if it's the only @
+				if (strpos($domain_suffix, '@', 1) === false)
+				{
+					// there's only one @ in the domain_suffix and it's at the beginning so it's safe
+					// to build the rest of the full qualified id
+					$response .= $domain_suffix;
+				}
+				else
+				{
+					// throw exception
+					throw new \Fuel_Exception('There can only be one @ in the domain_suffix string');
+				}
+			}
+			else
+			{
+				// throw exception
+				throw new \Fuel_Exception('The domain_suffix string is incorrect. If there\'s an @ in the string, it can only be at the beginning');
 			}
 		}
 

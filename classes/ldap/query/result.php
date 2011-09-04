@@ -52,7 +52,25 @@ class Ldap_Query_Result
 	 */
 	private final function __construct($ldap)
 	{
-		$this->_ldap = $ldap;
+		if (get_class($ldap) === 'Ldap\Ldap')
+		{
+			$this->_ldap = $ldap;
+		}
+		else if (is_string($ldap) or is_numeric($ldap))// remember we have named and not-named instances
+		{
+			if (Ldap::has_instance($ldap))
+			{
+				$this->_ldap = Ldap::instance($ldap);
+			}
+			else
+			{
+				throw new \Fuel_Exception('The given name does not belong to an existing Ldap instance.');
+			}
+		}
+		else
+		{
+			throw new \Fuel_Exception('An instance of Ldap is needed. Please verify that the given parameter is either an instance or a valid name for an existing instance.');
+		}
 	}
 
 	public static function forge($ldap)
@@ -123,7 +141,7 @@ class Ldap_Query_Result
 			// Clean the error first
 			$this->clean_error();
 
-			// set the error. We don't bother checking the format of the error.
+			// set the error. We won't bother checking the format of the error.
 			$this->_error = $error;
 		}
 	}

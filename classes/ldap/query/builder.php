@@ -77,11 +77,11 @@ class Ldap_Query_Builder
 	/**
 	 * Builds the multiple subqueries levels
 	 */
-	private static function build_level($params)
+	private static function build_level(Array $params)
 	{
 		$response = '';
 
-		if (is_array($params) && !empty($params))
+		if (!empty($params))
 		{
 			foreach ($params as $param)
 			{

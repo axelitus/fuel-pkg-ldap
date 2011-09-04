@@ -38,16 +38,34 @@ class Ldap_Query
 	/**
 	 * Prevent direct instantiation
 	 */
-	private final function __construct(Ldap $ldap)
+	private final function __construct($ldap)
 	{
-		$this->_ldap = $ldap;
+		if (get_class($ldap) === 'Ldap\Ldap')
+		{
+			$this->_ldap = $ldap;
+		}
+		else if (is_string($ldap) or is_numeric($ldap))// remember we have named and not-named instances
+		{
+			if (Ldap::has_instance($ldap))
+			{
+				$this->_ldap = Ldap::instance($ldap);
+			}
+			else
+			{
+				throw new \Fuel_Exception('The given name does not belong to an existing Ldap instance.');
+			}
+		}
+		else
+		{
+			throw new \Fuel_Exception('An instance of Ldap is needed. Please verify that the given parameter is either an instance or a valid name for an existing instance.');
+		}
 	}
 
 	/**
 	 * Creates an instance of Ldap_Query. An Ldap instance must be supplied as it is
 	 * needed to perform the query
 	 */
-	public static function forge(Ldap $ldap)
+	public static function forge($ldap)
 	{
 		return new Ldap_Query($ldap);
 	}

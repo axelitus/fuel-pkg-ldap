@@ -19,7 +19,8 @@ Autoloader::add_classes(array(
 	'Ldap\\Ldap_Query'						=> __DIR__.'/classes/ldap/query.php',
 	'Ldap\\Ldap_Query_Builder'				=> __DIR__.'/classes/ldap/query/builder.php',
 	'Ldap\\Ldap_Query_Result'				=> __DIR__.'/classes/ldap/query/result.php',
-	'Ldap\\Ldap_Query_Result_Formatter'		=> __DIR__.'/classes/ldap/query/result/formatter.php'
+	'Ldap\\Ldap_Query_Result_Formatter'		=> __DIR__.'/classes/ldap/query/result/formatter.php',
+	'Ldap\\Auth_Login_LdapAuth'				=> __DIR__.'/classes/auth/login/ldapauth.php'
 ));
 
 

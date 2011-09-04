@@ -33,7 +33,7 @@ class Ldap_Query_Result_Formatter
 	 * Formats the results array with the given flags. This is a non-destructive
 	 * function as it returns the processed array but leaves the original intact
 	 */
-	public static function format($array, $flags = 0)
+	public static function format(Array $array, $flags = 0)
 	{
 		$response = static::process_flags($array, $flags);
 
@@ -44,7 +44,7 @@ class Ldap_Query_Result_Formatter
 	 * Process each given flag in the flags parameter with it's corresponding
 	 * function. Every function is a non-destructive function.
 	 */
-	private static function process_flags($array, $flags)
+	private static function process_flags(Array $array, $flags)
 	{
 		$response = $array;
 
@@ -105,7 +105,7 @@ class Ldap_Query_Result_Formatter
 	 * Removes the count indexes added for every level in the results
 	 * As this is a private method we assume the given array is actually an array
 	 */
-	private static function format_remove_counts($array)
+	private static function format_remove_counts(Array $array)
 	{
 		$response = array();
 
@@ -126,7 +126,7 @@ class Ldap_Query_Result_Formatter
 	 * string key. This just goes into the sencod level, no further.
 	 * As this is a private method we assume the given array is actually an array.
 	 */
-	private static function format_no_num_index($array)
+	private static function format_no_num_index(Array $array)
 	{
 		$response = array();
 
@@ -160,7 +160,7 @@ class Ldap_Query_Result_Formatter
 	 * Flattens the values that are arrays but only contain one value
 	 * As this is a private method we assume the given array is actually an array
 	 */
-	private static function format_flatten_values($array, $root = true)
+	private static function format_flatten_values(Array $array, $root = true)
 	{
 		$response = array();
 
