@@ -94,35 +94,64 @@ class Auth_Login_LdapAuth extends \Auth_Login_Driver
 	public function login($username_or_email = '', $password = '')
 	{
 		$response = false;
-		
+
 		$username_or_email = (($temp = trim($username_or_email)) ? $temp : trim(\Input::post(\Config::get('ldapauth.username_post_key', 'username'))));
 		$password = (($temp = trim($password)) ? $temp : trim(\Input::post(\Config::get('ldapauth.password_post_key', 'password'))));
 
-		if (empty($username_or_email) or empty($password))
+		if ($username_or_email != '' and $password != '')
 		{
-			return false;
-		}
+			// binds using given credentials but rebinds as master when authenticated
+			$authenticated = $this->_ldap->bind_credentials($username_or_email, $password);
 
-		$authenticated = $this->_ldap->bind_credentials($username_or_email, $password, true);
-		if ($authenticated)
-		{
-			// TODO: Build the query to retrieve the user object
-			
-			/*
-			if ($this->user == false)
+			// Did the credentials authenticate?
+			if ($authenticated)
 			{
-				$this->user = \Config::get('simpleauth.guest_login', true) ? static::$guest_login : false;
-				\Session::delete('username');
-				\Session::delete('login_hash');
-				return false;
-			}
+				// Set the parameters to get the users info
+				$params = array('&', 'objectCategory=Person', 'objectClass=User', 'sAMAccountName=' . Ldap::get_username_id_part($username_or_email));
+				$filter = Ldap_Query_Builder::build($params);
 
-			\Session::set('username', $this->user['username']);
-			\Session::set('login_hash', $this->create_login_hash());
-			 * */
-			$response = true;
+				// Get all user data from Ldap query. This query should return only 1 result
+				$result = $this->_ldap->query($filter)->execute('', '*');
+
+				if (($count = count($result)) == 1)
+				{
+					// We set the user to the returned result item and remove the counts, flatten the
+					// value attributes, and lower case the keys
+					$this->_user = $result[0];
+
+					// Format the user array
+					// @formatter:off
+					$this->_user = Ldap_Query_Result_Formatter::format($this->_user,
+						Ldap_Query_Result_Formatter::LDAP_FORMAT_REMOVE_COUNTS
+						| Ldap_Query_Result_Formatter::LDAP_FORMAT_NO_NUM_INDEX
+						| Ldap_Query_Result_Formatter::LDAP_FORMAT_FLATTEN_VALUES
+						| Ldap_Query_Result_Formatter::LDAP_FORMAT_KEYS_CASE_LOWER
+						| Ldap_Query_Result_Formatter::LDAP_FORMAT_SORT_BY_ATTRIBUTES,
+						Ldap_Query_Result_Formatter::LDAP_RESULT_LEVEL_ITEM);
+					//@formatter:on
+
+					if ($this->_user == null || empty($this->_user))
+					{
+						\Session::delete('username');
+					}
+					else
+					{
+						\Session::set('username', $this->_user['samaccountname']);
+					}
+				}
+				else if ($count == 0)
+				{
+					throw new \Fuel_Exception('There where no results with the given $username_or_email parameter. Maybe the user does not exist');
+				}
+				else
+				{
+					throw new \Fuel_Exception('There where multiple results with the given $username_or_email parameter. Is your LDAP directory correct?');
+				}
+
+				$response = true;
+			}
 		}
-		
+
 		return $response;
 	}
 
@@ -141,6 +170,8 @@ class Auth_Login_LdapAuth extends \Auth_Login_Driver
 	 */
 	public function get_user_id()
 	{
+		var_dump($this->_user); exit;
+		return array($this->get_id(), ((isset($this->_user['objectguid'])? Ldap::guid_bin_to_str($this->_user['objectguid']) : null)));
 	}
 
 	/**
