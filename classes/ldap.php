@@ -38,6 +38,11 @@ class Ldap
 	protected static $_instances = array();
 
 	/**
+	 * @var Ldap contains a reference to the default Ldap instance
+	 */
+	protected static $_default = null;
+
+	/**
 	 * @var Array contains the instance configuration
 	 * TODO: Migrate all config settings to an apropriate Class
 	 */
@@ -122,7 +127,7 @@ class Ldap
 				unset($config['name']);
 
 				// Create the instance only if we can override it or it does not exist
-				if ($override || !isset(static::$_instances[$id]))
+				if ($override || !isset(static::$_instances[$name]))
 				{
 					static::$_instances[$name] = new Ldap();
 				}
@@ -145,6 +150,13 @@ class Ldap
 
 			// set the Ldap instance name and initialize with the custom config
 			static::$_instances[$name]->_init($name, $config);
+
+			// If there's no default instance or the config array has the default parameter
+			// set to true then set this instance as the default
+			if (static::$_default === null || (isset($config['default']) && $config['default'] == true))
+			{
+				static::$_default = static::$_instances[$name];
+			}
 
 			// Set the return value to the generated instance. If we want to know it's name
 			// all we have to do is call the get_name() function. Later on we can get the
@@ -239,16 +251,14 @@ class Ldap
 				break;
 			case 'definst':
 			// Let's get the default instance if there's one
-				if (static::has_instances())
+				if (static::$_default !== null)
 				{
-					$keys = static::instance_keys();
-					$name = reset($keys);
-					$response = static::$_instances[$name];
+					$response = static::$_default;
 				}
 				else
 				{
 					// throw exception 'Ldap has no instances'
-					throw new \Fuel_Exception('There are no Ldap instances. Try using forge() first to create one.');
+					throw new \Fuel_Exception('There is no default Ldap instance. Try using forge() first to create one.');
 				}
 				break;
 			default:
@@ -258,6 +268,11 @@ class Ldap
 		}
 
 		return $response;
+	}
+
+	public static function instances()
+	{
+		return static::$_instances;
 	}
 
 	/**
@@ -524,7 +539,7 @@ class Ldap
 				}
 				else
 				{
-					$master_id = static::full_qualified_id($this->_config['connection']['master_user'], $this->_config['domain_suffix']);
+					$master_user = static::full_qualified_id($this->_config['connection']['master_user'], $this->_config['domain_suffix']);
 					$master_pwd = $this->_config['connection']['master_pwd'];
 				}
 			}
@@ -578,6 +593,8 @@ class Ldap
 
 				if ($rebind_as_master)
 				{
+					//  Try to rebind as master. There's no way to know if re-binding was correct
+					// using the return value. Use $ldap->is_binded() after function call for that
 					$this->bind();
 				}
 			}
@@ -629,7 +646,7 @@ class Ldap
 		\Fuel::add_package('auth');
 
 		// Create the Auth instance for this Ldap
-		$response = \Auth::forge(array('driver' => 'Ldap\LdapAuth', 'ldap' => $this));
+		$response = \Auth::forge(array('driver' => 'Ldap\LdapAuth', 'id' => $this->get_name(), 'ldap' => $this));
 
 		return $response;
 	}
@@ -875,6 +892,63 @@ class Ldap
 		}
 
 		return $response;
+	}
+
+	public static function get_username_id_part($username_or_email)
+	{
+		$response = trim($username_or_email);
+
+		// is the username_or_email a string and is not empty?
+		// consider as empty also a string with only n whitespaces
+		if (is_string($response) && $response != '')
+		{
+			if (($pos = strpos($response, '@')) !== false)
+			{
+				// Get the id part of username_or_email
+				$id = trim(substr($response, 0, $pos));
+
+				// is the id part empty?
+				if ($id != '')
+				{
+					$response = $id;
+				}
+				else
+				{
+					throw new \Fuel_Exception('The id part of the username_or_email string (usually the substring that is before the @) cannot be an empty string');
+				}
+			}
+		}
+		else
+		{
+			throw new \Fuel_Exception('The username_or_email parameter must be a non-empty string');
+		}
+
+		return $response;
+	}
+
+	public static function guid_bin_to_str($bin_guid)
+	{
+		$hex_guid = bin2hex($bin_guid);
+
+		$hex_guid_to_guid_str = '';
+		for ($k = 1; $k <= 4; ++$k)
+		{
+			$hex_guid_to_guid_str .= substr($hex_guid, 8 - 2 * $k, 2);
+		}
+		$hex_guid_to_guid_str .= '-';
+		for ($k = 1; $k <= 2; ++$k)
+		{
+			$hex_guid_to_guid_str .= substr($hex_guid, 12 - 2 * $k, 2);
+		}
+		$hex_guid_to_guid_str .= '-';
+		for ($k = 1; $k <= 2; ++$k)
+		{
+			$hex_guid_to_guid_str .= substr($hex_guid, 16 - 2 * $k, 2);
+		}
+		$hex_guid_to_guid_str .= '-' . substr($hex_guid, 16, 4);
+		$hex_guid_to_guid_str .= '-' . substr($hex_guid, 20);
+
+		return strtoupper($hex_guid_to_guid_str);
 	}
 
 }

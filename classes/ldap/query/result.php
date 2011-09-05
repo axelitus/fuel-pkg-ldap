@@ -20,7 +20,7 @@ namespace Ldap;
  * @author      Axel Pardemann
  * @copyright   2011 Axel Pardemann
  */
-class Ldap_Query_Result
+class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \ArrayAccess
 {
 	/**
 	 * @var Ldap a reference to the Ldap instance
@@ -38,9 +38,9 @@ class Ldap_Query_Result
 	private $_result = array();
 
 	/**
-	 * @var Integer contains the results count
+	 * @var Integer contains the results total rows
 	 */
-	private $_count = 0;
+	private $_total_rows = 0;
 
 	/**
 	 * @var Array contains the generated error or empty array
@@ -56,7 +56,8 @@ class Ldap_Query_Result
 		{
 			$this->_ldap = $ldap;
 		}
-		else if (is_string($ldap) or is_numeric($ldap))// remember we have named and not-named instances
+		else if (is_string($ldap) or is_numeric($ldap))// remember we have named and
+		// not-named instances
 		{
 			if (Ldap::has_instance($ldap))
 			{
@@ -97,8 +98,32 @@ class Ldap_Query_Result
 
 				if (isset($this->_result['count']))
 				{
-					$this->_count = $this->_result['count'];
+					$this->_total_rows = $this->_result['count'];
 					unset($this->_result['count']);
+				}
+
+				// Now get the member variables for each result and store it in a special key
+				// named __attributes
+				foreach ($this->_result as $key => $value)
+				{
+					$attributes = array();
+					foreach ($value as $attr => $attr_value)
+					{
+						if (is_numeric($attr))
+						{
+							if (!in_array($attr_value, $attributes))
+							{
+								$attributes[] = $attr_value;
+							}
+						}
+						else
+						{
+							$attributes[] = $attr;
+						}
+					}
+
+					natsort($attributes);
+					$this->_result[$key]['__attributes'] = array_values($attributes);
 				}
 			}
 		}
@@ -152,7 +177,7 @@ class Ldap_Query_Result
 	 * that the result does not have the main count item by design. Use
 	 * Ldap_Query_Result->count() instead.
 	 */
-	public function result()
+	public function as_array()
 	{
 		return $this->_result;
 	}
@@ -163,18 +188,192 @@ class Ldap_Query_Result
 	 * Ldap adds some values to the array. Also note that the result does not have
 	 * the main count item by design. Use Ldap_Query_Result->count() instead.
 	 */
-	public function result_format($flags = 0)
+	public function as_array_format($flags = 0)
 	{
 		return Ldap_Query_Result_Formatter::format($this->_result, $flags);
 	}
 
+	// === Begin: Interface Countable ===
+
 	/**
+	 * Implements [Countable::count]
+	 *
 	 * Gets the entries count as read in the results array. In theory we can trust
 	 * this value as to having the correct count value
+	 *
+	 * echo count($result);
 	 */
 	public function count()
 	{
-		return $this->_count;
+		return $this->_total_rows;
 	}
 
+	// === End: Interface Countable ===
+
+	// === Begin: Interface Iterator ===
+
+	protected $_current_row = 0;
+
+	/**
+	 * Implements [Iterator::key], returns the current row number.
+	 *
+	 *     echo key($result);
+	 *
+	 * @return  integer
+	 */
+	public function key()
+	{
+		return $this->_current_row;
+	}
+
+	/**
+	 * Implements [Iterator::next], moves to the next row.
+	 *
+	 *     next($result);
+	 *
+	 * @return  $this
+	 */
+	public function next()
+	{
+		++$this->_current_row;
+		return $this;
+	}
+
+	/**
+	 * Implements [Iterator::prev], moves to the previous row.
+	 *
+	 *     prev($result);
+	 *
+	 * @return  $this
+	 */
+	public function prev()
+	{
+		--$this->_current_row;
+		return $this;
+	}
+
+	/**
+	 * Implements [Iterator::rewind], sets the current row to zero.
+	 *
+	 *     rewind($result);
+	 *
+	 * @return  $this
+	 */
+	public function rewind()
+	{
+		$this->_current_row = 0;
+		return $this;
+	}
+
+	/**
+	 * Implements [Iterator::valid], checks if the current row exists.
+	 *
+	 * [!!] This method is only used internally.
+	 *
+	 * @return  boolean
+	 */
+	public function valid()
+	{
+		return $this->offsetExists($this->_current_row);
+	}
+
+	/**
+	 * Implements [Iterator::current]
+	 */
+	public function current()
+	{
+		if (!$this->seek($this->_current_row))
+		{
+			return false;
+		}
+
+		// Return an array of the row
+		return $this->_result[$this->_current_row];
+	}
+
+	// === End: Interface Iterator ===
+
+	// === Begin: Interface SeekableIterator ===
+
+	/**
+	 * Implements SeekableIterator::seek]
+	 */
+	public function seek($offset)
+	{
+		if ($this->offsetExists($offset))
+		{
+			// Set the current row to the offset
+			$this->_current_row = $offset;
+
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	// === End: Interface SeekableIterator ===
+
+	// === Begin: Interface ArrayAccess ===
+
+	/**
+	 * Implements [ArrayAccess::offsetExists], determines if row exists.
+	 *
+	 *     if (isset($result[10]))
+	 *     {
+	 *         // Row 10 exists
+	 *     }
+	 *
+	 * @return  boolean
+	 */
+	public function offsetExists($offset)
+	{
+		return ($offset >= 0 && $offset < $this->_total_rows);
+	}
+
+	/**
+	 * Implements [ArrayAccess::offsetGet], gets a given row.
+	 *
+	 *     $row = $result[10];
+	 *
+	 * @return  mixed
+	 */
+	public function offsetGet($offset)
+	{
+		if (!$this->seek($offset))
+		{
+			return null;
+		}
+
+		return $this->current();
+	}
+
+	/**
+	 * Implements [ArrayAccess::offsetSet], throws an error.
+	 *
+	 * [!!] You cannot modify a database result.
+	 *
+	 * @return  void
+	 * @throws  Exception
+	 */
+	final public function offsetSet($offset, $value)
+	{
+		throw new \Fuel_Exception('Ldap results are read-only');
+	}
+
+	/**
+	 * Implements [ArrayAccess::offsetUnset], throws an error.
+	 *
+	 * [!!] You cannot modify a database result.
+	 *
+	 * @return  void
+	 * @throws  Exception
+	 */
+	final public function offsetUnset($offset)
+	{
+		throw new \Fuel_Exception('Ldap results are read-only');
+	}
+
+	// === End: Interface ArrayAccess ===
 }
