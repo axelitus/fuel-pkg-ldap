@@ -170,8 +170,9 @@ class Auth_Login_LdapAuth extends \Auth_Login_Driver
 	 */
 	public function get_user_id()
 	{
-		var_dump($this->_user); exit;
-		return array($this->get_id(), ((isset($this->_user['objectguid'])? Ldap::guid_bin_to_str($this->_user['objectguid']) : null)));
+		$response = array($this->get_id(), ((isset($this->_user['objectguid'])? Ldap_Query_Result_Formatter::guid_bin_to_str($this->_user['objectguid']) : null))); 
+		
+		return $response;
 	}
 
 	/**
