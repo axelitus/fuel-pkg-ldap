@@ -85,7 +85,7 @@ class Ldap_Query_Result_Formatter
 						$response = static::format_no_num_index_item($response);
 						break;
 					default:
-						// Default to root
+					// Default to root
 						$response = static::format_no_num_index_root($response);
 						break;
 				}
@@ -104,7 +104,7 @@ class Ldap_Query_Result_Formatter
 						$response = static::format_flatten_values_item($response);
 						break;
 					default:
-						// Default to root
+					// Default to root
 						$response = static::format_flatten_values_root($response);
 						break;
 				}
@@ -137,7 +137,7 @@ class Ldap_Query_Result_Formatter
 						$response = static::format_sort_by_attributes_item($response);
 						break;
 					default:
-						// Default to root
+					// Default to root
 						$response = static::format_sort_by_attributes_root($response);
 						break;
 				}
@@ -395,6 +395,130 @@ class Ldap_Query_Result_Formatter
 		}
 
 		return $response;
+	}
+
+	/**
+	 * The GUID functions where taken from the posts in
+	 * http://php.net/manual/en/function.ldap-get-values-len.php
+	 */
+
+	/**
+	 * This function is used to get a readable GUID string from a binary GUID.
+	 * This is the string that most LDAP browsers and Active Directory display as the
+	 * object's GUID.
+	 *
+	 */
+	public static function guid_bin_to_str($bin_guid, $enclosed = false)
+	{
+		$response = '';
+
+		$hex_guid = bin2hex($bin_guid);
+
+		$hex_guid_to_guid_str = '';
+		for ($k = 1; $k <= 4; ++$k)
+		{
+			$hex_guid_to_guid_str .= substr($hex_guid, 8 - 2 * $k, 2);
+		}
+		$hex_guid_to_guid_str .= '-';
+		for ($k = 1; $k <= 2; ++$k)
+		{
+			$hex_guid_to_guid_str .= substr($hex_guid, 12 - 2 * $k, 2);
+		}
+		$hex_guid_to_guid_str .= '-';
+		for ($k = 1; $k <= 2; ++$k)
+		{
+			$hex_guid_to_guid_str .= substr($hex_guid, 16 - 2 * $k, 2);
+		}
+		$hex_guid_to_guid_str .= '-' . substr($hex_guid, 16, 4);
+		$hex_guid_to_guid_str .= '-' . substr($hex_guid, 20);
+
+		$response = (($enclosed) ? static::guid_str_enclose(strtoupper($hex_guid_to_guid_str)) : strtoupper($hex_guid_to_guid_str));
+
+		return $response;
+	}
+
+	public static function guid_str_enclose($guid_str)
+	{
+		$response = '';
+
+		if (strpos($guid_str, '{') === false && strpos($guid_str, '}') === false)
+		{
+			$response = '{' . $guid_str . '}';
+		}
+
+		return $response;
+	}
+
+	/**
+	 * The actual string to search in the LDAP directories is an octet string.
+	 * This string is the same as the GUID str, except it has some bytes swapped.
+	 * (Little-Endian vs. Big-Endian). This function converts a Readable GUID str to
+	 * the search-ready formatted string. Use with $escaped = true for escaping the
+	 * byte pairs with a '\'. This is needed for searching!
+	 */
+	public static function guid_str_to_octet_str($str_guid, $escaped = false)
+	{
+		$str_guid = str_replace('-', '', $str_guid);
+
+		$octet_str = (($escaped) ? '\\' : '') . substr($str_guid, 6, 2);
+		$octet_str .= (($escaped) ? '\\' : '') . substr($str_guid, 4, 2);
+		$octet_str .= (($escaped) ? '\\' : '') . substr($str_guid, 2, 2);
+		$octet_str .= (($escaped) ? '\\' : '') . substr($str_guid, 0, 2);
+		$octet_str .= (($escaped) ? '\\' : '') . substr($str_guid, 10, 2);
+		$octet_str .= (($escaped) ? '\\' : '') . substr($str_guid, 8, 2);
+		$octet_str .= (($escaped) ? '\\' : '') . substr($str_guid, 14, 2);
+		$octet_str .= (($escaped) ? '\\' : '') . substr($str_guid, 12, 2);
+		for ($i = 16; $i < strlen($str_guid); $i = $i + 2)
+		{
+			$octet_str .= (($escaped) ? '\\' : '') . substr($str_guid, $i, 2);
+		}
+
+		return $octet_str;
+	}
+
+	public static function guid_octet_str_escape($octet_str)
+	{
+		$response = '';
+		if (strpos($octet_str, '\\') === false)
+		{
+			if (strlen($octet_str) % 2 != 0)
+			{
+				$octet_str .= '0';
+			}
+
+			$len = strlen($octet_str);
+			for ($i = 0; $i < $len - 1; $i = $i + 2)
+			{
+				$response .= '\\' . $octet_str[$i] . $octet_str[$i + 1];
+			}
+		}
+
+		return $response;
+	}
+
+	/**
+	 * Takes an octet string and transforms it to a readable GUID string.
+	 */
+	public static function guid_octet_str_to_str($octet_str)
+	{
+		return static::guid_bin_to_str(static::guid_octet_str_to_bin($octet_str));
+	}
+
+	/**
+	 * Takes an octet string and converts it to a binary GUID
+	 */
+	public static function guid_octet_str_to_bin($octet_str)
+	{
+		$octet_str = str_replace('\\', '', $octet_str);
+
+		$bin = "";
+		$i = 0;
+		do
+		{
+			$bin .= chr(hexdec($octet_str{$i} . $octet_str{($i + 1)}));
+			$i += 2;
+		} while ( $i < strlen($octet_str) );
+		return $bin;
 	}
 
 }
