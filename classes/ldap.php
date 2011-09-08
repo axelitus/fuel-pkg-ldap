@@ -23,36 +23,33 @@ namespace Ldap;
 class Ldap
 {
 	/**
-	 * Some useful constants
+	 * Some useful LDAP constants
 	 */
-	const LDAP_FOLDER = 'OU';
+	const LDAP_ORGANIZATIONAL_UNIT = 'OU';
 	const LDAP_CONTAINER = 'CN';
-	const DEFAULT_PORT = 389;
-	const DEFAULT_SSL_PORT = 636;
 	const LDAP_RESOURCE_LINK = 'ldap link';
 	const LDAP_RESOURCE_RESULT = 'ldap result';
 
 	/**
-	 * @var Array contains references if multiple were loaded
+	 * @var Array contains references to Ldap instances if multiple were loaded
 	 */
 	protected static $_instances = array();
 
 	/**
-	 * @var Ldap contains a reference to the default Ldap instance
+	 * @var Ldap contains a reference to the default Ldap instance or null
 	 */
 	protected static $_default = null;
 
 	/**
-	 * @var Array contains the instance configuration
-	 * TODO: Migrate all config settings to an apropriate Class
-	 */
-	protected $_config = array();
-
-	/**
-	 * @var String|Integer contains the name of the instance (string or numeric
-	 * index)
+	 * @var string|int contains the name of the instance (string or numeric index)
 	 */
 	protected $_name = '';
+
+	/**
+	 * @var Ldap_Config contains the instance configuration object
+	 * TODO: Migrate all config settings to an apropriate Class
+	 */
+	protected $_config = null;
 
 	/**
 	 * @var Resource contains the LDAP link identifier when connected
@@ -60,7 +57,7 @@ class Ldap
 	protected $_connection = null;
 
 	/**
-	 * @var Bool contains a flag whether the it's binded to Ldap or not
+	 * @var Bool contains a flag whether it's binded to Ldap or not
 	 */
 	protected $_binded = false;
 
@@ -72,27 +69,61 @@ class Ldap
 	/**
 	 * Prevent direct instantiation
 	 */
-	final private function __construct()
+	private final function __construct()
 	{
+	}
+
+	/**
+	 * Initializes an instances of Ldap. Be warned: use it wiht care and at best only
+	 * on new Ldap instances or you will lose whatever you had in that instance.
+	 */
+	private final function _init($name, $options = null)
+	{
+		// this sets the instance to a fresh one
+		$this->_clear(true);
+
+		// set the instance name
+		$this->_set_name($name);
+
+		// let's see if we have a config given or we just need to use our own
+		$this->_config = Ldap_Config::forge((is_array($options) || is_string($options)) ? $options : \Config::load('ldap', true));
+	}
+
+	/**
+	 * _clears the instance (this means that it unbinds from Ldap server and kills
+	 * the
+	 * connection). The instance name is the only thing that gets not _cleared.
+	 * This is by design, as it could break the functionality.
+	 */
+	private function _clear($_clear_config = false)
+	{
+		$this->unbind();
+		$this->_connection = null;
+		$this->_binded = false;
+		$this->_base_dn = '';
+		if ($_clear_config)
+		{
+			$this->_config = array();
+		}
 	}
 
 	/**
 	 * Detects if Ldap is supported or not
 	 */
-	public static function ldap_supported()
+	public final static function ldap_supported()
 	{
-		$response = function_exists('ldap_connect');
+		$return = function_exists('ldap_connect');
 
-		return $response;
+		return $return;
 	}
 
 	/**
 	 * Forges a new Ldap instance
 	 * @return String|Integer|Null
 	 */
-	final public static function forge($config = array(), $override = false)
+	public final static function forge($config = null, $override = false)
 	{
-		$response = null;
+		$return = null;
 
 		// let's see if Ldap is even supported, if not why bother?
 		if (static::ldap_supported())
@@ -111,11 +142,12 @@ class Ldap
 				else
 				{
 					// We could not override the instance, so return null
-					return $response;
+					return $return;
 				}
 
-				// set the $config array to an empty array for the _init process
-				$config = array();
+				// set the $config array to null for the _init process (loads from config file or
+				// defaults)
+				$config = null;
 
 			}
 			else if (is_array($config) && isset($config['name']))
@@ -134,7 +166,7 @@ class Ldap
 				else
 				{
 					// We could not override the instance, so return null
-					return $response;
+					return $return;
 				}
 			}
 			else
@@ -161,7 +193,7 @@ class Ldap
 			// Set the return value to the generated instance. If we want to know it's name
 			// all we have to do is call the get_name() function. Later on we can get the
 			// instance again by calling the instance() function.
-			$response = static::$_instances[$name];
+			$return = static::$_instances[$name];
 		}
 		else
 		{
@@ -169,37 +201,34 @@ class Ldap
 			throw new \Fuel_Exception('LDAP is not supported.');
 		}
 
-		return $response;
+		return $return;
+	}
+
+	public static function is_instance($name)
+	{
+		$return = false;
+
+		if (isset(static::$_instances[$name]))
+		{
+			$return = true;
+		}
+
+		return $return;
 	}
 
 	/**
-	 * Checks wetherthere's at least one instance
+	 * Checks wether there's at least one instance
 	 */
-	public static function has_instances()
+	public final static function has_instances()
 	{
-		$response = false;
+		$return = false;
 
 		if (!empty(static::$_instances))
 		{
-			$response = true;
+			$return = true;
 		}
 
-		return $response;
-	}
-
-	public static function has_instance($name)
-	{
-		$response = false;
-
-		if (static::has_instances())
-		{
-			if ((is_string($name) && $name != '') || (is_numeric($name) && $name >= 0))
-			{
-				$response = isset(static::$_instances[$name]);
-			}
-		}
-
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -207,9 +236,9 @@ class Ldap
 	 * given (the instance that's first in the array. Note: be careful as to how PHP
 	 * manages array, it does not order them by keys, they are just hash tables)
 	 */
-	public static function instance($name = '')
+	public final static function instance($name = '')
 	{
-		$response = null;
+		$return = null;
 
 		// action can take 3 values: named, definst, *anything else* (which results in an
 		// exception)
@@ -239,9 +268,9 @@ class Ldap
 		switch($action)
 		{
 			case 'named':
-				if (static::has_instance($name))
+				if (static::is_instance($name))
 				{
-					$response = static::$_instances[$name];
+					$return = static::$_instances[$name];
 				}
 				else
 				{
@@ -253,7 +282,7 @@ class Ldap
 			// Let's get the default instance if there's one
 				if (static::$_default !== null)
 				{
-					$response = static::$_default;
+					$return = static::$_default;
 				}
 				else
 				{
@@ -267,10 +296,13 @@ class Ldap
 				break;
 		}
 
-		return $response;
+		return $return;
 	}
 
-	public static function instances()
+	/**
+	 * Gets the instances array
+	 */
+	public final static function instances()
 	{
 		return static::$_instances;
 	}
@@ -278,126 +310,17 @@ class Ldap
 	/**
 	 * Gets an array with all instance keys
 	 */
-	public static function instance_keys()
+	public final static function instance_keys()
 	{
-		$response = array_keys(static::$_instances);
+		$return = array_keys(static::$_instances);
 
-		return $response;
-	}
-
-	/**
-	 * Initializes an instances of Ldap. Be warned: use it wiht care and at best only
-	 * on new Ldap instances or you will lose whatever you had in that instance.
-	 */
-	final private function _init($name, $config = array())
-	{
-		// this sets the instance to a fresh one
-		$this->clean(true);
-
-		// set the instance name
-		$this->set_name($name);
-
-		// let's see if we have a config given or we just need to use our own
-		$config = (is_array($config) && !empty($config)) ? $config : \Config::load('ldap', true);
-
-		// check and cleanup the config array given using secure mode
-		$this->_config = static::parse_config($config);
-	}
-
-	/**
-	 * Cleans the instance (this means that it unbinds from Ldap server and kills the
-	 * connection). The instance name is the only thing that gets not cleaned.
-	 * This is by design, as it could break the functionality.
-	 */
-	final private function clean($clean_config = false)
-	{
-		$this->unbind();
-		$this->_connection = null;
-		$this->_binded = false;
-		$this->_base_dn = '';
-		if ($clean_config)
-		{
-			$this->_config = array();
-		}
-	}
-
-	/**
-	 * Parses a config array. There are two modes: secure and not secure.
-	 * - Secure mode: it looks for the values using the proper keys and sees if they
-	 * are of the proper type.
-	 * - Non secure mode: it copies the config array. (for now)
-	 *
-	 * Either way it sets the proper key's values to an acceptable given value or a
-	 * default value (which may not work).
-	 */
-	final public static function parse_config($config, $secure = true)
-	{
-		$response = array();
-
-		// Do we have a proper array to parse?
-		if (is_array($config))
-		{
-			// Which mode are we running? secure or non-secure?
-			if ($secure)
-			{
-				// check domain_controllers
-				$response['domain_controllers'] = array();
-				if (isset($config['domain_controllers']) && is_array($config['domain_controllers']))
-				{
-					foreach ($config['domain_controllers'] as $key => $value)
-					{
-						if (is_string($value))
-						{
-							$response['domain_controllers'][] = $value;
-						}
-					}
-				}
-
-				// check domain_suffix
-				$response['domain_suffix'] = ((isset($config['domain_suffix']) && is_string($config['domain_suffix'])) ? $config['domain_suffix'] : '');
-
-				// check connection details
-				$response['connection'] = array();
-				if (isset($config['connection']) && is_array($config['connection']))
-				{
-					// check use_ssl
-					$response['connection']['use_ssl'] = ((isset($config['connection']['use_ssl']) && is_bool($config['connection']['use_ssl'])) ? $config['connection']['use_ssl'] : false);
-
-					// check use_tls
-					$response['connection']['use_tls'] = ((isset($config['connection']['use_tls']) && is_bool($config['connection']['use_tls'])) ? $config['connection']['use_tls'] : false);
-
-					// check port
-					$response['connection']['port'] = ((isset($config['connection']['port']) && is_numeric($config['connection']['port']) && $config['connection']['port'] >= 0 && $config['connection']['port'] <= 65535) ? $config['connection']['port'] : (($config['connection']['use_ssl']) ? self::DEFAULT_SSL_PORT : self::DEFAULT_PORT));
-
-					// check master_user
-					$response['connection']['master_user'] = ((isset($config['connection']['master_user']) && is_string($config['connection']['master_user'])) ? $config['connection']['master_user'] : '');
-
-					// check master_pwd
-					$response['connection']['master_pwd'] = ((isset($config['connection']['master_pwd']) && is_string($config['connection']['master_pwd'])) ? $config['connection']['master_pwd'] : '');
-				}
-			}
-			else
-			{
-				// TODO: check for the values using proper the keys but omitting for types
-				$response = $config;
-			}
-		}
-		else
-		{
-			// Initialize a default array with default values as we were not given a config
-			// array we can parse.
-			// TODO: decide if we better throw an Exception as this would be a failed
-			// function run. In the meantime this is ok.
-			$response = array('domain_controllers' => array(), 'domain_suffix' => '', 'connection' => array('port' => self::DEFAULT_PORT, 'master_user' => '', 'master_pwd' => '', 'use_ssl' => false, 'use_tls' => false));
-		}
-
-		return $response;
+		return $return;
 	}
 
 	/**
 	 * Sets the instance's name
 	 */
-	private final function set_name($name)
+	private final function _set_name($name)
 	{
 		if (is_string($name) || is_numeric($name))
 		{
@@ -414,12 +337,12 @@ class Ldap
 	}
 
 	/**
-	 * Sets the instance's config. Be warned that this action cleans up the LDap
+	 * Sets the instance's config. Be warned that this action _clears up the Ldap
 	 * instance disconnecting un unbinding the connection
 	 */
 	public function set_config($config = array())
 	{
-		$this->clean(true);
+		$this->_clear(true);
 		$this->_config = static::parse_config($config, true);
 	}
 
@@ -428,16 +351,16 @@ class Ldap
 	 */
 	public function get_config($key = '')
 	{
-		$response = null;
+		$return = null;
 		if (is_string($key) && $key != '')
 		{
-			$response = ((isset($this->_config[$key])) ? $this->_config[$key] : $response);
+			$return = ((isset($this->_config[$key])) ? $this->_config[$key] : $return);
 		}
 		else
 		{
-			$response = $this->_config;
+			$return = $this->_config;
 		}
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -461,7 +384,7 @@ class Ldap
 	 */
 	public function connect($chain = false)
 	{
-		$response = false;
+		$return = false;
 
 		// Aren't we alerady connected?
 		if (!$this->is_connected())
@@ -471,26 +394,23 @@ class Ldap
 			if ($domain_controller !== '')
 			{
 				$host = $domain_controller;
-				if (isset($this->_config['connection']['use_ssl']) && $this->_config['connection']['use_ssl'] == true)
+				if ($this->_config->get_item('connection.ssl') == true)
 				{
 					$host = "ldaps://" . $host;
-					$port = ((isset($this->_config['connection']['port'])) ? $this->_config['connection']['port'] : self::DEFAULT_SSL_PORT);
 				}
-				else
-				{
-					$port = (($this->_config['connection']['port']) ? $this->_config['connection']['port'] : self::DEFAULT_PORT);
-				}
+
+				$port = $this->_config->get_item('connection.port');
 
 				// Connect to that damn Ldap!
 				$this->_connection = @ldap_connect($host, $port);
-				if ($response = $this->is_connected())
+				if ($return = $this->is_connected())
 				{
 					// Set some ldap options for correct communication
 					ldap_set_option($this->_connection, LDAP_OPT_PROTOCOL_VERSION, 3);
 					ldap_set_option($this->_connection, LDAP_OPT_REFERRALS, 0);
 
 					// Start TLS if configured
-					if (isset($this->_config['connection']['use_tls']) && $this->_config['connection']['use_tls'] == true)
+					if ($this->_config->get_item('connection.tls') == true)
 					{
 						ldap_start_tls($this->_connection);
 					}
@@ -504,13 +424,13 @@ class Ldap
 		else
 		{
 			// We are already connected!
-			$response = true;
+			$return = true;
 		}
 
 		// if we want to chain methods then set the response to this instance
-		$response = (($chain) ? $this : $response);
+		$return = (($chain) ? $this : $return);
 
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -518,7 +438,7 @@ class Ldap
 	 */
 	public function bind($anonymous = false, $chain = false)
 	{
-		$response = false;
+		$return = false;
 
 		// Are we connected? If not, then try to ensure we have a connection by using the
 		// try_connect parameter
@@ -535,7 +455,7 @@ class Ldap
 				// Prevent anonymous binding by checking if a username and password has been set
 				if (!isset($this->_config['connection']['master_user']) || trim($this->_config['connection']['master_user'] == '') || !isset($this->_config['connection']['master_pwd']) || trim($this->_config['connection']['master_pwd']) == '')
 				{
-					return $response;
+					return $return;
 				}
 				else
 				{
@@ -550,9 +470,9 @@ class Ldap
 			{
 				// Succesful binding! Let's try to get the Base DN!
 				$this->_base_dn = $this->_find_base_dn();
-				if ($this->_base_dn !== '')
+				if ($this->_base_dn != '')
 				{
-					$response = true;
+					$return = true;
 				}
 			}
 		}
@@ -562,9 +482,9 @@ class Ldap
 		}
 
 		// if we want to chain methods then set the response to this instance
-		$response = (($chain) ? $this : $response);
+		$return = (($chain) ? $this : $return);
 
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -572,7 +492,7 @@ class Ldap
 	 */
 	public function bind_credentials($username_or_email, $password, $rebind_as_master = true)
 	{
-		$response = false;
+		$return = false;
 
 		// Are we connected? If not, then try to ensure we have a connection by using the
 		// try_connect parameter
@@ -584,7 +504,7 @@ class Ldap
 			if ($full_id != '' && $password != '')
 			{
 				// Bind the damn thing to Ldap with credentials!
-				$response = $this->_binded = @ldap_bind($this->_connection, $full_id, $password);
+				$return = $this->_binded = @ldap_bind($this->_connection, $full_id, $password);
 				if ($this->_binded)
 				{
 					// Succesful binding! Let's try to get the Base DN!
@@ -604,7 +524,7 @@ class Ldap
 			throw new \Fuel_Exception('Cannot bind: there is no connection to LDAP server.');
 		}
 
-		return $response;
+		return $return;
 	}
 
 	public function unbind()
@@ -630,10 +550,10 @@ class Ldap
 	 */
 	public function query($filter = '')
 	{
-		$response = Ldap_Query::forge($this);
-		$response->set_filter($filter);
+		$return = Ldap_Query::forge($this);
+		$return->set_filter($filter);
 
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -646,19 +566,19 @@ class Ldap
 		\Fuel::add_package('auth');
 
 		// Create the Auth instance for this Ldap
-		$response = \Auth::forge(array('driver' => 'Ldap\LdapAuth', 'id' => $this->get_name(), 'ldap' => $this));
+		$return = \Auth::forge(array('driver' => 'Ldap\LdapAuth', 'id' => $this->get_name(), 'ldap' => $this));
 
-		return $response;
+		return $return;
 	}
 
 	/**
 	 * Disconnects (and unbinds) the Ldap connection.
-	 * This is just an alias to the function clean (which handles our unbinding and
-	 * variable cleanup)
+	 * This is just an alias to the function _clear (which handles our unbinding and
+	 * variable _clearup)
 	 */
 	public function disconnect()
 	{
-		$this->clean();
+		$this->_clear();
 	}
 
 	/**
@@ -666,12 +586,16 @@ class Ldap
 	 */
 	private function _random_domain_controller()
 	{
-		$response = null;
-		if (isset($this->_config['domain_controllers']) && is_array($this->_config['domain_controllers']) && !empty($this->_config['domain_controllers']))
+		$return = null;
+
+		// Do not use property directly, it behaves randomly
+		$domain_controllers = $this->_config->domain_controllers;
+		if (!empty($domain_controllers))
 		{
-			$response = $this->_config['domain_controllers'][array_rand($this->_config['domain_controllers'])];
+			$return = $domain_controllers[array_rand($domain_controllers)];
 		}
-		return $response;
+
+		return $return;
 	}
 
 	/**
@@ -679,18 +603,18 @@ class Ldap
 	 */
 	public function is_connected($try_connect = false)
 	{
-		$response = false;
+		$return = false;
 
 		if (isset($this->_connection) && is_resource($this->_connection) && get_resource_type($this->_connection) == self::LDAP_RESOURCE_LINK)
 		{
-			$response = true;
+			$return = true;
 		}
 		else if ($try_connect)
 		{
-			$response = $this->connect();
+			$return = $this->connect();
 		}
 
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -698,18 +622,18 @@ class Ldap
 	 */
 	public function is_binded($try_bind = false, $anonymous = false)
 	{
-		$response = false;
+		$return = false;
 
 		if (isset($this->_binded) && $this->_binded == true)
 		{
-			$response = true;
+			$return = true;
 		}
 		else if ($try_bind)
 		{
-			$response = $this->bind($anonymous);
+			$return = $this->bind($anonymous);
 		}
 
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -717,14 +641,14 @@ class Ldap
 	 */
 	public function has_error()
 	{
-		$response = false;
+		$return = false;
 
 		if (@ldap_errno($this->_connection) !== 0)
 		{
-			$response = true;
+			$return = true;
 		}
 
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -732,15 +656,15 @@ class Ldap
 	 */
 	public function get_error()
 	{
-		$response = null;
+		$return = null;
 
 		if ($this->is_connected())
 		{
-			$response['number'] = ldap_errno($this->_connection);
-			$response['message'] = ldap_error($this->_connection);
+			$return['number'] = ldap_errno($this->_connection);
+			$return['message'] = ldap_error($this->_connection);
 		}
 
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -748,7 +672,7 @@ class Ldap
 	 */
 	private function _find_base_dn()
 	{
-		$response = '';
+		$return = '';
 
 		// Get the naming contexts!
 		$namingContexts = $this->_get_root_dse(array('defaultnamingcontext'));
@@ -763,11 +687,11 @@ class Ldap
 				// empty string and that's that!
 				if (isset($namingContexts[0]['namingcontexts'][0]))
 				{
-					$response = $namingContexts[0]['namingcontexts'][0];
+					$return = $namingContexts[0]['namingcontexts'][0];
 				}
 				else
 				{
-					$response = '';
+					$return = '';
 				}
 			}
 			else
@@ -777,10 +701,10 @@ class Ldap
 		}
 		else
 		{
-			$response = $namingContexts[0]['defaultnamingcontext'][0];
+			$return = $namingContexts[0]['defaultnamingcontext'][0];
 		}
 
-		return $response;
+		return $return;
 	}
 
 	/**
@@ -788,42 +712,42 @@ class Ldap
 	 */
 	private function _get_root_dse($attributes = array("*", "+"))
 	{
-		$response = null;
+		$return = null;
 
 		if ($this->is_connected())
 		{
 			$sr = @ldap_read($this->_connection, null, 'objectClass=*', $attributes);
 			if (is_resource($sr) && get_resource_type($sr) == self::LDAP_RESOURCE_RESULT)
 			{
-				$response = @ldap_get_entries($this->_connection, $sr);
+				$return = @ldap_get_entries($this->_connection, $sr);
 			}
 		}
 
-		return $response;
+		return $return;
 	}
 
 	public static function full_qualified_id($username_or_email, $domain_suffix = '')
 	{
-		$response = trim($username_or_email);
+		$return = trim($username_or_email);
 		$use_domain_suffix = false;
 
 		// is the username_or_email a string and is not empty?
 		// consider as empty also a string with only n whitespaces
-		if (is_string($response) && $response != '')
+		if (is_string($return) && $return != '')
 		{
 			// Is there an @ in the username_or_email string?
-			if (($pos = strpos($response, '@')) !== false)
+			if (($pos = strpos($return, '@')) !== false)
 			{
 				// We have a composited id with an arbitrary suffix
 				// separate the username_or_email string into id and suffix
-				$id = trim(substr($response, 0, $pos));
-				$suffix = trim(substr($response, $pos + 1));
+				$id = trim(substr($return, 0, $pos));
+				$suffix = trim(substr($return, $pos + 1));
 
 				// is the id part empty?
 				if ($id != '')
 				{
 					// set the response to the id part and begin assembling the full qualified id
-					$response = $id;
+					$return = $id;
 
 					// is the suffix part empty?
 					if ($suffix != '')
@@ -832,7 +756,7 @@ class Ldap
 						if (strpos($suffix, '@') === false)
 						{
 							// we can safely build the rest of the full qualified id
-							$response .= '@' . $suffix;
+							$return .= '@' . $suffix;
 						}
 						else
 						{
@@ -867,7 +791,7 @@ class Ldap
 			{
 				// the domain_suffix part does not include an @ so it's safely to build the rest
 				// of the full qualified id
-				$response .= '@' . $domain_suffix;
+				$return .= '@' . $domain_suffix;
 			}
 			else if ($pos == 0)
 			{
@@ -876,7 +800,7 @@ class Ldap
 				{
 					// there's only one @ in the domain_suffix and it's at the beginning so it's safe
 					// to build the rest of the full qualified id
-					$response .= $domain_suffix;
+					$return .= $domain_suffix;
 				}
 				else
 				{
@@ -891,26 +815,26 @@ class Ldap
 			}
 		}
 
-		return $response;
+		return $return;
 	}
 
 	public static function get_username_id_part($username_or_email)
 	{
-		$response = trim($username_or_email);
+		$return = trim($username_or_email);
 
 		// is the username_or_email a string and is not empty?
 		// consider as empty also a string with only n whitespaces
-		if (is_string($response) && $response != '')
+		if (is_string($return) && $return != '')
 		{
-			if (($pos = strpos($response, '@')) !== false)
+			if (($pos = strpos($return, '@')) !== false)
 			{
 				// Get the id part of username_or_email
-				$id = trim(substr($response, 0, $pos));
+				$id = trim(substr($return, 0, $pos));
 
 				// is the id part empty?
 				if ($id != '')
 				{
-					$response = $id;
+					$return = $id;
 				}
 				else
 				{
@@ -923,32 +847,7 @@ class Ldap
 			throw new \Fuel_Exception('The username_or_email parameter must be a non-empty string');
 		}
 
-		return $response;
-	}
-
-	public static function guid_bin_to_str($bin_guid)
-	{
-		$hex_guid = bin2hex($bin_guid);
-
-		$hex_guid_to_guid_str = '';
-		for ($k = 1; $k <= 4; ++$k)
-		{
-			$hex_guid_to_guid_str .= substr($hex_guid, 8 - 2 * $k, 2);
-		}
-		$hex_guid_to_guid_str .= '-';
-		for ($k = 1; $k <= 2; ++$k)
-		{
-			$hex_guid_to_guid_str .= substr($hex_guid, 12 - 2 * $k, 2);
-		}
-		$hex_guid_to_guid_str .= '-';
-		for ($k = 1; $k <= 2; ++$k)
-		{
-			$hex_guid_to_guid_str .= substr($hex_guid, 16 - 2 * $k, 2);
-		}
-		$hex_guid_to_guid_str .= '-' . substr($hex_guid, 16, 4);
-		$hex_guid_to_guid_str .= '-' . substr($hex_guid, 20);
-
-		return strtoupper($hex_guid_to_guid_str);
+		return $return;
 	}
 
 }
