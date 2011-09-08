@@ -44,7 +44,8 @@ class Ldap_Query
 		{
 			$this->_ldap = $ldap;
 		}
-		else if (is_string($ldap) or is_numeric($ldap))// remember we have named and not-named instances
+		// remember we have named and not-named instances
+		else if (is_string($ldap) or is_numeric($ldap))
 		{
 			if (Ldap::has_instance($ldap))
 			{
@@ -95,23 +96,10 @@ class Ldap_Query
 	 * base_dn part as it will be automatically concatenated at the end
 	 * $limt = 0 means no limit, return all records found
 	 */
-	public function execute($directory_dn = '', $attributes = '', $limit = 0)
+	public function execute($directory_dn = '', $attributes = '', $limit = 0, $timeout = 0)
 	{
 		// TODO: forge the Ldap_Query_Result object
 		$response = Ldap_Query_Result::forge($this->_ldap);
-
-		// Prepare path_dn
-		$path_dn = ((is_string($directory_dn) && (trim($directory_dn) != '')) ? $directory_dn : '');
-		$path_dn .= (($path_dn != '') ? ',' . $this->_ldap->get_base_dn() : $this->_ldap->get_base_dn());
-
-		// Prepare filter
-		$filter = ($this->_filter == '') ? self::DEFAULT_FILTER : $this->_filter;
-
-		// Prepare fields
-		$fields = ((is_string($attributes)) ? (($attributes == '') ? static::build_attr_array(self::DEFAULT_FIELDS) : static::build_attr_array($attributes)) : ((is_array($attributes) && !empty($attributes)) ? $attributes : static::build_attr_array(self::DEFAULT_FIELDS)));
-
-		// Prepare limit
-		$limit = max($limit, 0);
 
 		// Are we even connected? Ensure a connection using the try_connect parameter
 		if ($this->_ldap->is_connected(true))
@@ -119,8 +107,25 @@ class Ldap_Query
 			// Are we binded? Ensure a binding using the try_bind parameter
 			if ($this->_ldap->is_binded(true))
 			{
+				// Prepare path_dn
+				$path_dn = ((is_string($directory_dn) && (trim($directory_dn) != '')) ? $directory_dn : '');
+				$path_dn .= (($path_dn != '') ? ',' . $this->_ldap->get_base_dn() : $this->_ldap->get_base_dn());
+
+				// Prepare filter
+				$filter = ($this->_filter == '') ? self::DEFAULT_FILTER : $this->_filter;
+
+				// Prepare fields
+				$fields = ((is_string($attributes)) ? (($attributes == '') ? static::build_attr_array(self::DEFAULT_FIELDS) : static::build_attr_array($attributes)) : ((is_array($attributes) && !empty($attributes)) ? $attributes : static::build_attr_array(self::DEFAULT_FIELDS)));
+
+				// Prepare limit
+				$limit = max($limit, 0);
+
+				// Prepare timeout
+				// TODO: how to handle timeout with LDAP config?
+				$timeout = max($timeout, 0);
+
 				// Query the damn thing!
-				$sr = @ldap_search($this->_ldap->get_connection(), $path_dn, $filter, $fields, 0, $limit);
+				$sr = @ldap_search($this->_ldap->get_connection(), $path_dn, $filter, $fields, 0, $limit, $timeout);
 
 				// The query went ok?
 				if (is_resource($sr) && get_resource_type($sr) == Ldap::LDAP_RESOURCE_RESULT)
@@ -130,6 +135,7 @@ class Ldap_Query
 				}
 				else
 				{
+					// TODO: change for an exception
 					// set the Ldap_Query_Result error
 					if ($this->_ldap->has_error())
 					{
@@ -143,13 +149,11 @@ class Ldap_Query
 			}
 			else
 			{
-				// TODO: change the thrown Exception for an error in the Ldap_Quer_Result object
 				throw new \Fuel_Exception('Cannot query: there is no binding to LDAP server.');
 			}
 		}
 		else
 		{
-			// TODO: change the thrown Exception for an error in the Ldap_Quer_Result object
 			throw new \Fuel_Exception('Cannot query: there is no connection to LDAP server.');
 		}
 

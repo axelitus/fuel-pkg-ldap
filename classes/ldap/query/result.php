@@ -154,6 +154,11 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 		return $response;
 	}
 
+	public function get_error()
+	{
+		return $this->_error;
+	}
+
 	public function set_error($error)
 	{
 		// Get the caller info
