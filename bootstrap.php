@@ -3,13 +3,21 @@
  * Fuel is a fast, lightweight, community driven PHP5 framework.
  *
  * @package    Fuel
- * @version    1.0
+ * @version    1.1
  * @author     Fuel Development Team
  * @license    MIT License
  * @copyright  2010 - 2011 Fuel Development Team
  * @link       http://fuelphp.com
  */
 
+/**
+ * Ldap
+ *
+ * @package     Fuel
+ * @subpackage  Ldap
+ * @author      Axel Pardemann (http://github.com/axelitus)
+ * @link        http://github.com/axelitus/fuel-pkg-ldap
+ */
 Autoloader::add_namespace('Ldap', __DIR__.'/classes/');
 
 Autoloader::add_core_namespace('Ldap');
@@ -23,6 +31,3 @@ Autoloader::add_classes(array(
 	'Ldap\\Ldap_Query_Result_Formatter'		=> __DIR__.'/classes/ldap/query/result/formatter.php',
 	'Ldap\\Auth_Login_LdapAuth'				=> __DIR__.'/classes/auth/login/ldapauth.php'
 ));
-
-
-/* End of file bootstrap.php */

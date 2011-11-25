@@ -3,7 +3,7 @@
  * Fuel is a fast, lightweight, community driven PHP5 framework.
  *
  * @package    Fuel
- * @version    1.0
+ * @version    1.1
  * @author     Fuel Development Team
  * @license    MIT License
  * @copyright  2010 - 2011 Fuel Development Team
@@ -13,12 +13,12 @@
 namespace Ldap;
 
 /**
- * Ldap Package
+ * Ldap_Query
  *
  * @package     Fuel
  * @subpackage  Ldap
- * @author      Axel Pardemann
- * @copyright   2011 Axel Pardemann
+ * @author      Axel Pardemann (http://github.com/axelitus)
+ * @link        http://github.com/axelitus/fuel-pkg-ldap
  */
 class Ldap_Query
 {

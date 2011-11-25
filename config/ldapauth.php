@@ -3,7 +3,7 @@
  * Fuel is a fast, lightweight, community driven PHP5 framework.
  *
  * @package    Fuel
- * @version    1.0
+ * @version    1.1
  * @author     Fuel Development Team
  * @license    MIT License
  * @copyright  2010 - 2011 Fuel Development Team
@@ -18,7 +18,14 @@
  *
  * This will allow you to upgrade this package without losing your custom config.
  */
-
+/**
+ * Ldap Auth Config example
+ *
+ * @package     Fuel
+ * @subpackage  Ldap
+ * @author      Axel Pardemann (http://github.com/axelitus)
+ * @link        http://github.com/axelitus/fuel-pkg-ldap
+ */
 return array(
 	/**
 	 * $_POST key for login username
