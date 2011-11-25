@@ -12,19 +12,13 @@
 
 namespace Ldap;
 
-class Ldap_ConfigException extends \Fuel_Exception
-{
-}
-
 /**
- * Ldap_Config Class
- *
- * Description...
+ * Ldap_Config
  *
  * @package     Fuel
  * @subpackage  Ldap
- * @author      Axel Pardemann
- * @copyright   2011 Axel Pardemann
+ * @author      Axel Pardemann (http://github.com/axelitus)
+ * @link        http://github.com/axelitus/fuel-pkg-ldap
  */
 class Ldap_Config
 {
@@ -42,19 +36,24 @@ class Ldap_Config
 	 * Config Keys
 	 */
 	const KEY_DOMAIN = 'domain';
-	const KEY_DOMAIN_SUFFIX = 'suffix';
-	const KEY_DOMAIN_CONTROLLERS = 'controllers';
+	const KEY_DOMAIN_SUFFIX = 'domain.suffix';
+	const KEY_DOMAIN_CONTROLLERS = 'domain.controllers';
 	const KEY_CONNECTION = 'connection';
-	const KEY_CONNECTION_PORT = 'port';
-	const KEY_CONNECTION_TIMEOUT = 'timeout';
-	const KEY_CONNECTION_SSL = 'ssl';
-	const KEY_CONNECTION_TLS = 'tls';
+	const KEY_CONNECTION_PORT = 'connection.port';
+	const KEY_CONNECTION_TIMEOUT = 'connection.timeout';
+	const KEY_CONNECTION_SSL = 'connection.ssl';
+	const KEY_CONNECTION_TLS = 'connection.tls';
 	const KEY_MASTER = 'master';
-	const KEY_MASTER_USER = 'user';
-	const KEY_MASTER_PASSWORD = 'password';
+	const KEY_MASTER_USER = 'master.user';
+	const KEY_MASTER_PASSWORD = 'master.password';
 
 	/**
-	 * @var Array contains the config values
+	 * @var bool whether it's possible to use the arrvalidator package or not
+	 */
+	protected static $_arvalidator_exists = false;
+	
+	/**
+	 * @var array contains the config values
 	 */
 	protected $_config = array();
 
@@ -66,29 +65,60 @@ class Ldap_Config
 	}
 	
 	/**
+	 * Initialize class
+	 */
+	public static function _init()
+	{
+		static::$_arvalidator_exists = Package::loaded('arrvalidator') || Package::load('arrvalidator');
+	}
+	
+	/**
 	 * Returns a config array with the default values.
 	 */
 	public static function defaults()
 	{
-		// @formatter:off
-		$return = array(
-			self::KEY_DOMAIN => array(
-				self::KEY_DOMAIN_SUFFIX => '',
-				self::KEY_DOMAIN_CONTROLLERS => array()
-			),
-			self::KEY_CONNECTION => array(
-				self::KEY_CONNECTION_PORT => self::DEFAULT_PORT,
-				self::KEY_CONNECTION_TIMEOUT => self::DEFAULT_TIMEOUT,
-				self::KEY_CONNECTION_SSL => self::DEFAULT_SSL,
-				self::KEY_CONNECTION_TLS => self::DEFAULT_TLS
-				
-			),
-			self::KEY_MASTER => array(
-				self::KEY_MASTER_USER => '',
-				self::KEY_MASTER_PASSWORD => ''
-			)
-		);
-		// @formatter:on
+		$return = array();
+		\Arr::set($return, static::KEY_DOMAIN_SUFFIX, '');
+		\Arr::set($return, static::KEY_DOMAIN_CONTROLLERS, array());
+		\Arr::set($return, static::KEY_CONNECTION_PORT, static::DEFAULT_PORT);
+		\Arr::set($return, static::KEY_CONNECTION_TIMEOUT, static::DEFAULT_TIMEOUT);
+		\Arr::set($return, static::KEY_CONNECTION_SSL, static::DEFAULT_SSL);
+		\Arr::set($return, static::KEY_CONNECTION_TLS, static::DEFAULT_TLS);
+		\Arr::set($return, static::KEY_MASTER_USER, '');
+		\Arr::set($return, static::KEY_MASTER_PASSWORD, '');
+
+		return $return;
+	}
+
+	/**
+	 * Forges a new Ldap_Config object using a value array or a config file string
+	 * @see http://fuelphp.com/docs/classes/config.html
+	 */
+	public final static function forge($options = array())
+	{
+		$return = null;
+
+		// Is string, array or something else?
+		$config = $options;
+		if (is_string($config))
+		{
+			// If $options is a string then we want to load from config file. We can have
+			// multiple, so group them using the CONFIG_GROUP_NAME constant and the file name
+			$config = \Config::load($config, self::CONFIG_GROUP_NAME . '-' . $config);
+		}
+		else if(!is_array($options))
+		{
+			throw new InvalidArgumentException('The $options parameter should be an array or a string of a config file to be loaded.');
+		}
+
+		// Parse the configuration array to validate it
+		$config = static::parse($config);
+
+		// Create the Ldap_Config instance
+		$return = new Ldap_Config();
+
+		// Initialize the config array
+		$return->_init($config);
 
 		return $return;
 	}
@@ -97,13 +127,17 @@ class Ldap_Config
 	 * Initialize the Ldap_Config instance. Use with care as this bypasses all
 	 * validation and just sets the config attribute to the given array.
 	 */
+	/*
 	private function _init(Array $config)
 	{
 		$this->_config = $config;
 	}
+	 * */
 	
 	/**
-	 * Sets the configuration to the default one
+	 * Sets the configuration values to the default ones.
+	 * 
+	 * @return void
 	 */
 	public function clear(){
 		$this->_config = static::defaults();
@@ -225,40 +259,7 @@ class Ldap_Config
 		return $return;
 	}
 
-	/**
-	 * Forges a new Ldap_Config values using a values array or the path to a
-	 * config file (do not include the file extension as ".php" is assumed).
-	 * @see http://fuelphp.com/docs/classes/config.html
-	 */
-	public final static function forge(Array $options = array())
-	{
-		$return = null;
-
-		// Is string, array or something else?
-		if (is_string($options))
-		{
-			// If $options is a string then we want to load from config file. We can have
-			// multiple, so group them using the CONFIG_GROUP_NAME constant and the file name
-			$config = \Config::load($options, self::CONFIG_GROUP_NAME . '-' . $options);
-		}
-		else
-		{
-			// At this point we don't care if the array doesn't meet the specs as it will be
-			// parse later on for our safety
-			$config = $options;
-		}
-
-		// Verify if we have an array and parse it or else set defaults as a fallback!
-		$config = (is_array($config)) ? static::parse($config) : static::defaults();
-
-		// Create the Ldao_Config instance
-		$return = new Ldap_Config();
-
-		// Initialize the config array
-		$return->_init($config);
-
-		return $return;
-	}
+	
 
 	/**
 	 * Parses a given array.

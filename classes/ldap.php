@@ -3,7 +3,7 @@
  * Fuel is a fast, lightweight, community driven PHP5 framework.
  *
  * @package    Fuel
- * @version    1.0
+ * @version    1.1
  * @author     Fuel Development Team
  * @license    MIT License
  * @copyright  2010 - 2011 Fuel Development Team
@@ -13,12 +13,12 @@
 namespace Ldap;
 
 /**
- * Ldap Package
+ * Ldap
  *
  * @package     Fuel
  * @subpackage  Ldap
- * @author      Axel Pardemann
- * @copyright   2011 Axel Pardemann
+ * @author      Axel Pardemann (http://github.com/axelitus)
+ * @link        http://github.com/axelitus/fuel-pkg-ldap
  */
 class Ldap
 {
@@ -31,7 +31,7 @@ class Ldap
 	const LDAP_RESOURCE_RESULT = 'ldap result';
 
 	/**
-	 * @var Array contains references to Ldap instances if multiple were loaded
+	 * @var array contains references to Ldap instances if multiple were loaded
 	 */
 	protected static $_instances = array();
 
@@ -47,22 +47,21 @@ class Ldap
 
 	/**
 	 * @var Ldap_Config contains the instance configuration object
-	 * TODO: Migrate all config settings to an apropriate Class
 	 */
 	protected $_config = null;
 
 	/**
-	 * @var Resource contains the LDAP link identifier when connected
+	 * @var resource contains the LDAP link identifier when connected
 	 */
 	protected $_connection = null;
 
 	/**
-	 * @var Bool contains a flag whether it's binded to Ldap or not
+	 * @var bool contains a flag whether there's a binding to Ldap or not
 	 */
 	protected $_binded = false;
 
 	/**
-	 * @var String contains the Base DN of the Ldap binding
+	 * @var string contains the Base DN of the Ldap binding
 	 */
 	protected $_base_dn = '';
 
@@ -74,10 +73,10 @@ class Ldap
 	}
 
 	/**
-	 * Initializes an instances of Ldap. Be warned: use it wiht care and at best only
-	 * on new Ldap instances or you will lose whatever you had in that instance.
+	 * Loads an instance of Ldap.
+	 * Be warned: use it with care and at best only on new Ldap instances or you will lose whatever you had in that instance.
 	 */
-	private final function _init($name, $options = null)
+	private final function _load($name, $options = null)
 	{
 		// this sets the instance to a fresh one
 		$this->_clear(true);
