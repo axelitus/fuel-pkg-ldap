@@ -28,62 +28,79 @@ class Ldap_Query
 	/**
 	 * @var Ldap contains a reference to the Ldap instance
 	 */
-	private $_ldap;
+	protected $_ldap;
 
 	/**
 	 * @var String the filter to use for the query
 	 */
-	private $_filter;
+	protected $_filter;
 
 	/**
-	 * Prevent direct instantiation
+	 * Prevent direct instantiation.
 	 */
-	private final function __construct($ldap)
+	private function __construct($ldap, $filter = '')
 	{
-		if (get_class($ldap) === 'Ldap\Ldap')
+		if (is_object($ldap) && get_class($ldap) === 'Ldap\Ldap')
 		{
 			$this->_ldap = $ldap;
 		}
-		// remember we have named and not-named instances
-		else if (is_string($ldap) or is_numeric($ldap))
+		else if (is_string($ldap))
 		{
-			if (Ldap::has_instance($ldap))
+			if (Ldap::exists($ldap))
 			{
 				$this->_ldap = Ldap::instance($ldap);
 			}
 			else
 			{
-				throw new \Fuel_Exception('The given name does not belong to an existing Ldap instance.');
+				throw new \FuelException('The given name does not belong to an existing Ldap instance.');
 			}
 		}
 		else
 		{
-			throw new \Fuel_Exception('An instance of Ldap is needed. Please verify that the given parameter is either an instance or a valid name for an existing instance.');
+			throw new \FuelException('An instance of Ldap is needed. Please verify that the given parameter is either an instance or a valid name for an existing instance.');
 		}
+		
+		$this->set_filter($filter);
 	}
 
 	/**
-	 * Creates an instance of Ldap_Query. An Ldap instance must be supplied as it is
-	 * needed to perform the query
+	 * Creates an instance of Ldap_Query. An Ldap instance must be supplied as it is needed to perform
+	 * the query. This can be given as an object or the instance identifier.
+	 *
+	 * @param string|Ldap $ldap the Ldap instance or an existing instance's name.
+	 * @param string $filter the filter to be used by the query.
+	 * @return Ldap_Query the forged query object.
 	 */
-	public static function forge($ldap)
+	public static function forge($ldap, $filter = '')
 	{
-		return new Ldap_Query($ldap);
+		return new static($ldap);
 	}
 
 	/**
 	 * Sets the Query filter
+	 *
+	 * @param string|array $filter the filter to be used by the query in Ldap syntax or an array to be
+	 * used with Ldap_Query_Builder::build() method.
+	 * @return Ldap_Query this instance for chaining.
 	 */
 	public function set_filter($filter)
 	{
 		if (is_string($filter))
 		{
-			$this->_filter = trim($filter);
+			$this->_filter = Ldap_Query_Builder::build($filter);
 		}
+		elseif (is_array($filter))
+		{
+			$this->_filter = Ldap_Query_Builder::build($filter);
+		}
+
+		return $this;
 	}
 
 	/**
-	 * Gets the query filter
+	 * Gets the query filter.
+	 *
+	 * @return string the current query's filter.
 	 */
 	public function get_filter()
 	{
@@ -91,38 +108,39 @@ class Ldap_Query
 	}
 
 	/**
-	 * Executes the query
-	 * $directory_dn is the DN where we wan't to execute the query to, without the
-	 * base_dn part as it will be automatically concatenated at the end
-	 * $limt = 0 means no limit, return all records found
+	 * Executes the query. The query takes the Ldap instance's timeout value.
+	 *
+	 * @param string $directory_dn is the DN where we wan't to execute the query to, without the base dn
+	 * part as it will be automatically concatenated.
+	 * @param string|array $attributes the attributes to fetch with the query.
+	 * @param int $limt the result objects to fetch (0 means no limit and will return all found records).
 	 */
-	public function execute($directory_dn = '', $attributes = '', $limit = 0, $timeout = 0)
+	public function execute($directory_dn = '', $attributes = '', $limit = 0)
 	{
-		// TODO: forge the Ldap_Query_Result object
-		$response = Ldap_Query_Result::forge($this->_ldap);
+		$return = Ldap_Query_Result::forge($this->_ldap);
 
-		// Are we even connected? Ensure a connection using the try_connect parameter
+		// Are we even connected? Ensure a connection using the $try_connect parameter
 		if ($this->_ldap->is_connected(true))
 		{
-			// Are we binded? Ensure a binding using the try_bind parameter
+			// Are we binded? Ensure a binding using the $try_bind parameter
 			if ($this->_ldap->is_binded(true))
 			{
 				// Prepare path_dn
 				$path_dn = ((is_string($directory_dn) && (trim($directory_dn) != '')) ? $directory_dn : '');
-				$path_dn .= (($path_dn != '') ? ',' . $this->_ldap->get_base_dn() : $this->_ldap->get_base_dn());
+				$path_dn .= (($path_dn != '') ? ','.$this->_ldap->get_base_dn() : $this->_ldap->get_base_dn());
 
 				// Prepare filter
 				$filter = ($this->_filter == '') ? self::DEFAULT_FILTER : $this->_filter;
 
 				// Prepare fields
-				$fields = ((is_string($attributes)) ? (($attributes == '') ? static::build_attr_array(self::DEFAULT_FIELDS) : static::build_attr_array($attributes)) : ((is_array($attributes) && !empty($attributes)) ? $attributes : static::build_attr_array(self::DEFAULT_FIELDS)));
+				$fields = ((empty($attributes))? static::DEFAULT_FIELDS : $attributes);
+				$fields = static::build_attr_array($fields);
 
 				// Prepare limit
 				$limit = max($limit, 0);
 
-				// Prepare timeout
-				// TODO: how to handle timeout with LDAP config?
-				$timeout = max($timeout, 0);
+				// Prepare timeout. Uses the LDap instance's timeout value
+				$timeout = max($this->_ldap->config_get('connection.timeout', 0), 0);
 
 				// Query the damn thing!
 				$sr = @ldap_search($this->_ldap->get_connection(), $path_dn, $filter, $fields, 0, $limit, $timeout);
@@ -130,50 +148,57 @@ class Ldap_Query
 				// The query went ok?
 				if (is_resource($sr) && get_resource_type($sr) == Ldap::LDAP_RESOURCE_RESULT)
 				{
-					// init the Ldap_Query_Result object
-					$response->init($sr);
+					// load the Ldap_Query_Result object
+					$return->load($sr);
 				}
 				else
 				{
-					// TODO: change for an exception
 					// set the Ldap_Query_Result error
 					if ($this->_ldap->has_error())
 					{
-						$response->set_error($this->_ldap->get_error());
+						$return->set_error($this->_ldap->get_error());
 					}
 					else
 					{
-						$response->set_error(array('number' => 0, 'message' => 'Unknown error in Ldap\Ldap_Query execute() function.'));
+						$return->set_error(array('number' => -1, 'message' => 'Unknown error in Ldap\Ldap_Query execute() function.'));
 					}
 				}
 			}
 			else
 			{
-				throw new \Fuel_Exception('Cannot query: there is no binding to LDAP server.');
+				throw new \FuelException('Cannot query: there is no binding to LDAP server.');
 			}
 		}
 		else
 		{
-			throw new \Fuel_Exception('Cannot query: there is no connection to LDAP server.');
+			throw new \FuelException('Cannot query: there is no connection to LDAP server.');
 		}
 
-		return $response;
+		return $return;
 	}
 
 	/**
-	 * Builds an attributes array from a comma separated string
+	 * Builds an attributes array from a comma separated string. If the given attributes are an array it
+	 * is returned as-is.
+	 *
+	 * @param string $attributes a comma-separated attributes list.
+	 * @return array with the exploded attributes.
 	 */
 	public static function build_attr_array($attributes)
 	{
-		$response = array();
+		$return = array();
 
 		if (is_string($attributes) && (($attributes = trim($attributes)) != ''))
 		{
-			$response = explode(",", $attributes);
-			$response = array_map('trim', $response);
+			$return = explode(",", $attributes);
+			$return = array_map('trim', $return);
+		}
+		elseif (is_array($attributes))
+		{
+			$return = $attributes;
 		}
 
-		return $response;
+		return $return;
 	}
 
 }

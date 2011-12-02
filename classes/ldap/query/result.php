@@ -3,7 +3,7 @@
  * Fuel is a fast, lightweight, community driven PHP5 framework.
  *
  * @package    Fuel
- * @version    1.0
+ * @version    1.1
  * @author     Fuel Development Team
  * @license    MIT License
  * @copyright  2010 - 2011 Fuel Development Team
@@ -13,75 +13,90 @@
 namespace Ldap;
 
 /**
- * Ldap Package
+ * Ldap_Query
  *
  * @package     Fuel
  * @subpackage  Ldap
- * @author      Axel Pardemann
- * @copyright   2011 Axel Pardemann
+ * @author      Axel Pardemann (http://github.com/axelitus)
+ * @link        http://github.com/axelitus/fuel-pkg-ldap
  */
 class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \ArrayAccess
 {
 	/**
 	 * @var Ldap a reference to the Ldap instance
 	 */
-	private $_ldap = null;
+	protected $_ldap = null;
 
 	/**
-	 * @var Resource contains the ldap link resource reference
+	 * @var resource contains the ldap link resource reference
 	 */
-	private $_search = null;
+	protected $_search = null;
 
 	/**
-	 * @var Array contains the search result entries
+	 * @var array contains the search result entries
 	 */
-	private $_result = array();
+	protected $_result = array();
 
 	/**
-	 * @var Integer contains the results total rows
+	 * @var int contains the results total rows
 	 */
-	private $_total_rows = 0;
+	protected $_total_rows = 0;
 
+	// @formatter:off
 	/**
-	 * @var Array contains the generated error or empty array
+	 * @var array contains the generated error or an empty error array
 	 */
-	private $_error = array();
+	protected $_error = array(
+		'number' => 0,
+		'message' => ''
+	);
+	// @formatter:on
 
 	/**
 	 * Prevent direct instantiation
 	 */
-	private final function __construct($ldap)
+	private function __construct($ldap)
 	{
 		if (get_class($ldap) === 'Ldap\Ldap')
 		{
 			$this->_ldap = $ldap;
 		}
-		else if (is_string($ldap) or is_numeric($ldap))// remember we have named and
-		// not-named instances
+		else if (is_string($ldap))
 		{
-			if (Ldap::has_instance($ldap))
+			if (Ldap::exists($ldap))
 			{
 				$this->_ldap = Ldap::instance($ldap);
 			}
 			else
 			{
-				throw new \Fuel_Exception('The given name does not belong to an existing Ldap instance.');
+				throw new \FuelException('The given name does not belong to an existing Ldap instance.');
 			}
 		}
 		else
 		{
-			throw new \Fuel_Exception('An instance of Ldap is needed. Please verify that the given parameter is either an instance or a valid name for an existing instance.');
+			throw new \FuelException('An instance of Ldap is needed. Please verify that the given parameter is either an instance or a valid name for an existing instance.');
 		}
 	}
 
+	/**
+	 * Forges a ne instance of Ldap_Query_Result.
+	 *
+	 * @param string|Ldap $ldap the Ldap instance or an existing instance's name.
+	 * @return Ldap_Query_Result the forged result object.
+	 */
 	public static function forge($ldap)
 	{
-		$response = new Ldap_Query_Result($ldap);
-
-		return $response;
+		return new static($ldap);
 	}
 
-	public function init($search)
+	/**
+	 * Loads the results object with an LDAP search result. This function can only be called from an
+	 * LDap_Query object.
+	 *
+	 * @param $search the ldap_search() function results.
+	 * @return void
+	 */
+	public function load($search)
 	{
 		// Get the caller info
 		$trace = debug_backtrace();
@@ -111,7 +126,7 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 					{
 						if (is_numeric($attr))
 						{
-							if (!in_array($attr_value, $attributes))
+							if ( ! in_array($attr_value, $attributes))
 							{
 								$attributes[] = $attr_value;
 							}
@@ -129,12 +144,14 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 		}
 		else
 		{
-			throw new \Fuel_Exception('The init() function can only be called from the Ldap\Ldap_Query class.');
+			throw new \FuelException('The load() function can only be called from the Ldap\Ldap_Query class.');
 		}
 	}
 
 	/**
-	 * Cleans the error. Normally before getting the entries again
+	 * Cleans the error. Normally before getting the entries again.
+	 *
+	 * @return void
 	 */
 	private function clean_error()
 	{
@@ -142,11 +159,16 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 		$this->_error = array();
 	}
 
+	/**
+	 * Checks if there's an error.
+	 *
+	 * @return bool whether there's was an error or not.
+	 */
 	public function has_error()
 	{
 		$response = false;
 
-		if (is_array($this->_error) && !empty($this->_error))
+		if ($this->_error['number'] != 0)
 		{
 			$response = true;
 		}
@@ -154,11 +176,25 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 		return $response;
 	}
 
+	/**
+	 * Gets the error. If no error is given then an empty error array is returned:
+	 * array(
+	 *	'number' => 0,
+	 *	'message' => ''
+	 * );
+	 *
+	 * @return array the query result error.
+	 */
 	public function get_error()
 	{
 		return $this->_error;
 	}
 
+	/**
+	 * Sets the errorr. This function can only be called from an Ldap_Query instance.
+	 *
+	 * @return void
+	 */
 	public function set_error($error)
 	{
 		// Get the caller info
@@ -177,10 +213,11 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	}
 
 	/**
-	 * Gets the results array as it is. Beware that we cannot know the count of the
-	 * entries with a count($result) as Ldap adds some values to the array. Also note
-	 * that the result does not have the main count item by design. Use
-	 * Ldap_Query_Result->count() instead.
+	 * Gets the results array as it is. Beware that it's not safe to count the entries with a
+	 * count($result) as Ldap adds some values to the array. Also note that the result does not have the
+	 * main count item by design. Use Ldap_Query_Result->count() instead.
+	 *
+	 * @return array the raw results array.
 	 */
 	public function as_array()
 	{
@@ -188,10 +225,13 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	}
 
 	/**
-	 * Gets the results array and formats it according to the given flags.
-	 * Beware that we cannot know the count of the entries with a count($result) as
-	 * Ldap adds some values to the array. Also note that the result does not have
-	 * the main count item by design. Use Ldap_Query_Result->count() instead.
+	 * Gets the results array and formats it accordingly to the given flags. Beware that it's not safe to
+	 * count the entries with a count($result) as Ldap adds some values to the array. Also note that the
+	 * result does not have the main count item by design. Use Ldap_Query_Result->count() instead.	 *
+	 * @see Ldap_Query_Result_Formatter
+	 *
+	 * @param int $flags the flags to be used to format the results.
+	 * @return array the formatted results array.
 	 */
 	public function as_array_format($flags = 0)
 	{
@@ -207,6 +247,8 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	 * this value as to having the correct count value
 	 *
 	 * echo count($result);
+	 *
+	 * @return int
 	 */
 	public function count()
 	{
@@ -224,7 +266,7 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	 *
 	 *     echo key($result);
 	 *
-	 * @return  integer
+	 * @return  int
 	 */
 	public function key()
 	{
@@ -275,7 +317,7 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	 *
 	 * [!!] This method is only used internally.
 	 *
-	 * @return  boolean
+	 * @return  bool
 	 */
 	public function valid()
 	{
@@ -284,10 +326,12 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 
 	/**
 	 * Implements [Iterator::current]
+	 *
+	 * @return bool|array
 	 */
 	public function current()
 	{
-		if (!$this->seek($this->_current_row))
+		if ( ! $this->seek($this->_current_row))
 		{
 			return false;
 		}
@@ -302,6 +346,8 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 
 	/**
 	 * Implements SeekableIterator::seek]
+	 *
+	 * @return bool
 	 */
 	public function seek($offset)
 	{
@@ -330,7 +376,7 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	 *         // Row 10 exists
 	 *     }
 	 *
-	 * @return  boolean
+	 * @return  bool
 	 */
 	public function offsetExists($offset)
 	{
@@ -346,7 +392,7 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	 */
 	public function offsetGet($offset)
 	{
-		if (!$this->seek($offset))
+		if ( ! $this->seek($offset))
 		{
 			return null;
 		}
@@ -357,27 +403,27 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	/**
 	 * Implements [ArrayAccess::offsetSet], throws an error.
 	 *
-	 * [!!] You cannot modify a database result.
+	 * [!!] You cannot modify the results.
 	 *
 	 * @return  void
 	 * @throws  Exception
 	 */
 	final public function offsetSet($offset, $value)
 	{
-		throw new \Fuel_Exception('Ldap results are read-only');
+		throw new \FuelException('Ldap results are read-only');
 	}
 
 	/**
 	 * Implements [ArrayAccess::offsetUnset], throws an error.
 	 *
-	 * [!!] You cannot modify a database result.
+	 * [!!] You cannot modify the results.
 	 *
 	 * @return  void
 	 * @throws  Exception
 	 */
 	final public function offsetUnset($offset)
 	{
-		throw new \Fuel_Exception('Ldap results are read-only');
+		throw new \FuelException('Ldap results are read-only');
 	}
 
 	// === End: Interface ArrayAccess ===
