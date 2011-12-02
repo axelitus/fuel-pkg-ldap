@@ -105,7 +105,7 @@ class Ldap
 	}
 
 	/**
-	 * Initializes the class
+	 * Initializes the class. This is automatically called by the Autoloader class.
 	 *
 	 * @return void
 	 */
@@ -564,8 +564,10 @@ class Ldap
 		if ($this->is_connected(true))
 		{
 			// Prevent anonymous binding by checking if a username and password has been set
-			$full_id = static::full_qualified_id($username_or_email, \Arr::get($this->_config, 'domain_suffix', ''));
+			$full_id = static::full_qualified_id($username_or_email, \Arr::get($this->_config, 'domain.suffix', ''));
 			$password = (is_string($password) ? trim($password) : '');
+			
+			// Verify that the full_id or password are not empty
 			if ($full_id != '' && $password != '')
 			{
 				// Bind the damn thing to Ldap with credentials!
