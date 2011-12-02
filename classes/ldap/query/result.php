@@ -13,7 +13,7 @@
 namespace Ldap;
 
 /**
- * Ldap_Query
+ * Ldap_Query_Result
  *
  * @package     Fuel
  * @subpackage  Ldap
