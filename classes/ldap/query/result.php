@@ -106,7 +106,7 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 		if (get_class($caller['object']) == 'Ldap\Ldap_Query')
 		{
 			// Do we have an authentic search result?
-			if (is_resource($search) && get_resource_type($search) == Ldap::LDAP_RESOURCE_RESULT)
+			if (is_resource($search) && get_resource_type($search) == Ldap::RESOURCE_RESULT)
 			{
 				$this->_search = $search;
 				$this->_result = @ldap_get_entries($this->_ldap->get_connection(), $this->_search);

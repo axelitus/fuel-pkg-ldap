@@ -28,13 +28,14 @@ class LdapConnectionException extends \FuelException {}
 class Ldap
 {
 	const VERSION = '1.0';
+	
 	/**
 	 * Some useful LDAP constants
 	 */
-	const LDAP_ORGANIZATIONAL_UNIT = 'OU';
-	const LDAP_CONTAINER = 'CN';
-	const LDAP_RESOURCE_LINK = 'ldap link';
-	const LDAP_RESOURCE_RESULT = 'ldap result';
+	const ORGANIZATIONAL_UNIT = 'OU';
+	const CONTAINER = 'CN';
+	const RESOURCE_LINK = 'ldap link';
+	const RESOURCE_RESULT = 'ldap result';
 
 	/**
 	 * @var array contains references to Ldap instances if multiple were loaded
@@ -400,7 +401,7 @@ class Ldap
 	{
 		$return = false;
 
-		if (isset($this->_connection) && is_resource($this->_connection) && get_resource_type($this->_connection) == self::LDAP_RESOURCE_LINK)
+		if (isset($this->_connection) && is_resource($this->_connection) && get_resource_type($this->_connection) == self::RESOURCE_LINK)
 		{
 			$return = true;
 		}
@@ -876,7 +877,7 @@ class Ldap
 		if ($this->is_connected())
 		{
 			$sr = @ldap_read($this->_connection, null, 'objectClass=*', $attributes);
-			if (is_resource($sr) && get_resource_type($sr) == self::LDAP_RESOURCE_RESULT)
+			if (is_resource($sr) && get_resource_type($sr) == self::RESOURCE_RESULT)
 			{
 				$return = @ldap_get_entries($this->_connection, $sr);
 			}

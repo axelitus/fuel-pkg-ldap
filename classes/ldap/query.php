@@ -146,7 +146,7 @@ class Ldap_Query
 				$sr = @ldap_search($this->_ldap->get_connection(), $path_dn, $filter, $fields, 0, $limit, $timeout);
 				
 				// The query went ok?
-				if (is_resource($sr) && get_resource_type($sr) == Ldap::LDAP_RESOURCE_RESULT)
+				if (is_resource($sr) && get_resource_type($sr) == Ldap::RESOURCE_RESULT)
 				{
 					// load the Ldap_Query_Result object
 					$return->load($sr);
