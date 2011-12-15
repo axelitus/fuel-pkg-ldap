@@ -70,9 +70,14 @@ class Ldap_Query_Result_Formatter
 	const FORMAT_KEYS_CASE_UPPER = 16;
 
 	/**
-	 * @var int = 32 Tells the formatter to sort the array by attributes key using natcasesort
+	 * @var int = 32 Tells the formatter to sort the array by attribute's key using natcasesort
 	 */
 	const FORMAT_SORT_BY_ATTRIBUTES = 32;
+
+	/**
+	 * @var int = 64 Tells the formatter to sort the array by attribute's value using natcasesort
+	 */
+	const FORMAT_SORT_BY_VALUES = 64;
 
 	/**
 	 * Prevent direct instantiation.
@@ -178,6 +183,25 @@ class Ldap_Query_Result_Formatter
 					default:
 					// Default to root
 						$return = static::format_sort_by_attributes_root($return);
+					break;
+				}
+			}
+
+			// Format: Sort By Value
+			// Different Function For Each Level
+			if (static::is_flag_on($flags, self::FORMAT_SORT_BY_VALUES))
+			{
+				switch($level)
+				{
+					case self::RESULT_LEVEL_ROOT:
+						$return = static::format_sort_by_values_root($return);
+					break;
+					case self::RESULT_LEVEL_ITEM:
+						$return = static::format_sort_by_values_item($return);
+					break;
+					default:
+					// Default to root
+						$return = static::format_sort_by_values_root($return);
 					break;
 				}
 			}
@@ -428,7 +452,62 @@ class Ldap_Query_Result_Formatter
 			{
 				$return[$key] = $array[$key];
 			}
+		}
 
+		return $return;
+	}
+
+	private static function format_sort_by_values_root(array $array)
+	{
+		$return = array();
+
+		foreach ($array as $value)
+		{
+			$return[] = static::format_sort_by_values_item($value);
+		}
+
+		return $return;
+	}
+
+	private static function format_sort_by_values_item(array $array)
+	{
+		$sortables = array();
+		$sub_arrays = array();
+		$unsortables = array();
+		// Prepare temp arrays for sorting
+		foreach ($array as $key => $value)
+		{
+			if (is_array($value))
+			{
+				// automatically sort sub-arrays
+				$sub_arrays[$key] = static::format_sort_by_values_item($value);
+			}
+			elseif (is_string($value) || is_numeric($value))
+			{
+				$sortables[$key] = $value;
+			}
+			else
+			{
+				$unsortables[$key] = $value;
+			}
+		}
+		
+		// sort values and set them to be the first part of the return array
+		natcasesort($sortables);
+		$return = $sortables;
+		
+		// sort the sub arrays by key attaching them directly to the return array
+		$keys = array_keys($sub_arrays);
+		foreach($keys as $key)
+		{
+			$return[$key] = $sub_arrays[$key];
+		}
+		
+		// sort the unsortables by key attaching them directly to the return array
+		$keys = array_keys($unsortables);
+		foreach($keys as $key)
+		{
+			$return[$key] = $unsortables[$key];
 		}
 
 		return $return;
