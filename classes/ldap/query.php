@@ -23,7 +23,7 @@ namespace Ldap;
 class Ldap_Query
 {
 	const DEFAULT_FILTER = '(objectClass=*)';
-	const DEFAULT_FIELDS = 'objectguid, displayname';
+	const DEFAULT_FIELDS = 'objectguid, samaccountname, displayname';
 
 	/**
 	 * @var Ldap contains a reference to the Ldap instance
@@ -141,10 +141,10 @@ class Ldap_Query
 
 				// Prepare timeout. Uses the LDap instance's timeout value
 				$timeout = max($this->_ldap->config_get('connection.timeout', 0), 0);
-
+				
 				// Query the damn thing!
 				$sr = @ldap_search($this->_ldap->get_connection(), $path_dn, $filter, $fields, 0, $limit, $timeout);
-
+				
 				// The query went ok?
 				if (is_resource($sr) && get_resource_type($sr) == Ldap::LDAP_RESOURCE_RESULT)
 				{
