@@ -28,17 +28,17 @@ class Ldap_Query_Result_Formatter
 	/**
 	 * @var int = 0 Unknown Level or Not Given (ROOT will be used by default)
 	 */
-	const LDAP_RESULT_LEVEL_DEFAULT = 0;
+	const RESULT_LEVEL_DEFAULT = 0;
 
 	/**
 	 * @var int = 1 Ldap Result array First Level
 	 */
-	const LDAP_RESULT_LEVEL_ROOT = 1;
+	const RESULT_LEVEL_ROOT = 1;
 
 	/**
 	 * @var int = 2 Ldap Result array Second Level
 	 */
-	const LDAP_RESULT_LEVEL_ITEM = 2;
+	const RESULT_LEVEL_ITEM = 2;
 
 	/**
 	 * Bitwise operations constants
@@ -46,33 +46,33 @@ class Ldap_Query_Result_Formatter
 	/**
 	 * @var int = 1 Tells the formatter to remove the 'count' items from all arrays.
 	 */
-	const LDAP_FORMAT_REMOVE_COUNTS = 1;
+	const FORMAT_REMOVE_COUNTS = 1;
 
 	/**
 	 * @var int = 2 Tells the formatter to get rid of the numeric indexed attributes Microsoft's AD adds
 	 * for every string key
 	 */
-	const LDAP_FORMAT_NO_NUM_INDEX = 2;
+	const FORMAT_NO_NUM_INDEX = 2;
 
 	/**
 	 * @var int = 4 Tells the formatter to flatten the values that are arrays but only contain one value
 	 */
-	const LDAP_FORMAT_FLATTEN_VALUES = 4;
+	const FORMAT_FLATTEN_VALUES = 4;
 
 	/**
 	 * @var int = 8 Tells the formatter to lower-case all keys in the resulting array
 	 */
-	const LDAP_FORMAT_KEYS_CASE_LOWER = 8;
+	const FORMAT_KEYS_CASE_LOWER = 8;
 
 	/**
 	 * @var int = 16 Tells the formatter to upper-case all keys in the resulting array
 	 */
-	const LDAP_FORMAT_KEYS_CASE_UPPER = 16;
+	const FORMAT_KEYS_CASE_UPPER = 16;
 
 	/**
 	 * @var int = 32 Tells the formatter to sort the array by attributes key using natcasesort
 	 */
-	const LDAP_FORMAT_SORT_BY_ATTRIBUTES = 32;
+	const FORMAT_SORT_BY_ATTRIBUTES = 32;
 
 	/**
 	 * Prevent direct instantiation.
@@ -85,7 +85,7 @@ class Ldap_Query_Result_Formatter
 	 * Formats the results array with the given flags. This is a non-destructive
 	 * function as it returns the processed array but leaves the original intact
 	 */
-	public static function format(array $array, $flags = 0, $level = self::LDAP_RESULT_LEVEL_DEFAULT)
+	public static function format(array $array, $flags = 0, $level = self::RESULT_LEVEL_DEFAULT)
 	{
 		$return = static::process_flags($array, $flags, $level);
 
@@ -106,21 +106,21 @@ class Ldap_Query_Result_Formatter
 		{
 			// Format: Remove Counts
 			// Works For All Levels
-			if (static::is_flag_on($flags, self::LDAP_FORMAT_REMOVE_COUNTS))
+			if (static::is_flag_on($flags, self::FORMAT_REMOVE_COUNTS))
 			{
 				$return = static::format_remove_counts_multi($return);
 			}
 
 			// Format: No Num Index
 			// Different Function For Each Level
-			if (static::is_flag_on($flags, self::LDAP_FORMAT_NO_NUM_INDEX))
+			if (static::is_flag_on($flags, self::FORMAT_NO_NUM_INDEX))
 			{
 				switch($level)
 				{
-					case self::LDAP_RESULT_LEVEL_ROOT:
+					case self::RESULT_LEVEL_ROOT:
 						$return = static::format_no_num_index_root($return);
 					break;
-					case self::LDAP_RESULT_LEVEL_ITEM:
+					case self::RESULT_LEVEL_ITEM:
 						$return = static::format_no_num_index_item($return);
 					break;
 					default:
@@ -132,14 +132,14 @@ class Ldap_Query_Result_Formatter
 
 			// Format: Root Flatten Values
 			// Different Function For Each Level
-			if (static::is_flag_on($flags, self::LDAP_FORMAT_FLATTEN_VALUES))
+			if (static::is_flag_on($flags, self::FORMAT_FLATTEN_VALUES))
 			{
 				switch($level)
 				{
-					case self::LDAP_RESULT_LEVEL_ROOT:
+					case self::RESULT_LEVEL_ROOT:
 						$return = static::format_flatten_values_root($return);
 					break;
-					case self::LDAP_RESULT_LEVEL_ITEM:
+					case self::RESULT_LEVEL_ITEM:
 						$return = static::format_flatten_values_item($return);
 					break;
 					default:
@@ -151,28 +151,28 @@ class Ldap_Query_Result_Formatter
 
 			// Format: Lower Case Keys
 			// Works For All Levels
-			if (static::is_flag_on($flags, self::LDAP_FORMAT_KEYS_CASE_LOWER))
+			if (static::is_flag_on($flags, self::FORMAT_KEYS_CASE_LOWER))
 			{
 				$return = static::format_keys_case_lower_multi($return);
 			}
 
 			// Format: Upper Case Keys
 			// Works For All Levels
-			if (static::is_flag_on($flags, self::LDAP_FORMAT_KEYS_CASE_UPPER))
+			if (static::is_flag_on($flags, self::FORMAT_KEYS_CASE_UPPER))
 			{
 				$return = static::format_keys_case_upper_multi($return);
 			}
 
 			// Format: Sort By Attribute
 			// Different Function For Each Level
-			if (static::is_flag_on($flags, self::LDAP_FORMAT_SORT_BY_ATTRIBUTES))
+			if (static::is_flag_on($flags, self::FORMAT_SORT_BY_ATTRIBUTES))
 			{
 				switch($level)
 				{
-					case self::LDAP_RESULT_LEVEL_ROOT:
+					case self::RESULT_LEVEL_ROOT:
 						$return = static::format_sort_by_attributes_root($return);
 					break;
-					case self::LDAP_RESULT_LEVEL_ITEM:
+					case self::RESULT_LEVEL_ITEM:
 						$return = static::format_sort_by_attributes_item($return);
 					break;
 					default:
