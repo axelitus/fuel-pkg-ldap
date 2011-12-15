@@ -14,6 +14,7 @@ namespace Ldap;
 
 // @formatter:off
 class LdapNotSupportedException extends \FuelException {}
+class LdapConnectionException extends \FuelException {}
 // @formatter:on
 
 /**
@@ -157,7 +158,7 @@ class Ldap
 		// Validate the name
 		if ( ! is_string($name) || $name == '')
 		{
-			throw new InvalidArgumentException('The $name param must be a non-empty string.');
+			throw new \InvalidArgumentException('The $name param must be a non-empty string.');
 		}
 
 		// If we set the overwrite flag get rid of the instance if it already exists
@@ -478,7 +479,7 @@ class Ldap
 			}
 			else
 			{
-				throw new \FuelException('Cannot connect: There are no domain controllers to connect to. Please check your configuration.');
+				throw new LdapConnectionException('Cannot connect: There are no domain controllers to connect to. Please check your configuration.');
 			}
 		}
 
@@ -689,11 +690,11 @@ class Ldap
 	public function auth()
 	{
 		// Try to load Auth package if is not loaded
-		\Fuel::add_package('auth');
+		\Package::load('auth');
 
 		// Create the Auth instance for this Ldap
 		$return = \Auth::forge(array('driver' => 'Ldap\LdapAuth', 'id' => $this->get_name(), 'ldap' => $this));
-
+		
 		return $return;
 	}
 
