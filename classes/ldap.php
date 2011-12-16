@@ -14,6 +14,7 @@ namespace Ldap;
 
 // @formatter:off
 class LdapNotSupportedException extends \FuelException {}
+
 class LdapConnectionException extends \FuelException {}
 // @formatter:on
 
