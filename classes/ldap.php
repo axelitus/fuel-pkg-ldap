@@ -689,13 +689,13 @@ class Ldap
 	 * 
 	 * @return Auth object using LdapAuth driver.
 	 */
-	public function auth()
+	public function auth($config = array())
 	{
 		// Try to load Auth package if is not loaded
 		\Package::load('auth');
 
 		// Create the Auth instance for this Ldap
-		$return = \Auth::forge(array('driver' => 'Ldap\LdapAuth', 'id' => $this->get_name(), 'ldap' => $this));
+		$return = \Auth::forge(array('driver' => 'Ldap\LdapAuth', 'id' => $this->get_name(), 'ldap' => $this, 'config' => $config));
 		
 		return $return;
 	}

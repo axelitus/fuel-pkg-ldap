@@ -28,9 +28,16 @@
  */
 return array(
 	/**
-	 * Choose which attributes are retrieved. Always included: objectguid, samaccountname, mail, memberof, lastlogon
+	 * Choose which attributes are retrieved. Always included: objectguid, samaccountname, mail, memberof, pwdlastset
 	 */
 	'attributes' => array('*'),
+	
+	/**
+	 * The login hash field to use in the AD to store login hash. Set to false if you don't want to use the login hash.
+	 * You must ensure that the login hash is valid and writable. Use carefully as any value in this field will be overwritten
+	 * by the login hash.
+	 */
+	'login_hash_field' => false,
 	
 	/**
 	 * Salt for the login hash
