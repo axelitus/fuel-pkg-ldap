@@ -523,7 +523,7 @@ class Ldap
 				}
 				else
 				{
-					$master_user = static::full_qualified_id($master_user, \Arr::get($this->_config, 'domain_suffix', ''));
+					$master_user = static::full_qualified_id($master_user, \Arr::get($this->_config, 'domain.suffix', ''));
 				}
 			}
 
@@ -787,13 +787,13 @@ class Ldap
 				else
 				{
 					// throw exception
-					throw new \FuelException('There can only be one @ in the domain_suffix string');
+					throw new \FuelException('There can only be one @ in the domain_suffix string.');
 				}
 			}
 			else
 			{
 				// throw exception
-				throw new \FuelException('The domain_suffix string is incorrect. If there\'s an @ in the string, it can only be at the beginning');
+				throw new \FuelException('The domain_suffix string is incorrect. If there\'s an @ in the string, it can only be the first character.');
 			}
 		}
 
