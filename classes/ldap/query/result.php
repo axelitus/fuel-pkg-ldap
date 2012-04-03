@@ -42,6 +42,11 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	 */
 	protected $_total_rows = 0;
 
+	/**
+	 * @var string contains the filtered used for this query result
+	 */
+	protected $_filter_used = '';
+
 	// @formatter:off
 	/**
 	 * @var array contains the generated error or an empty error array
@@ -96,7 +101,7 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 	 * @param $search the ldap_search() function results.
 	 * @return void
 	 */
-	public function load($search)
+	public function load($search, $filter = '')
 	{
 		// Get the caller info
 		$trace = debug_backtrace();
@@ -109,6 +114,7 @@ class Ldap_Query_Result implements \Countable, \Iterator, \SeekableIterator, \Ar
 			if (is_resource($search) && get_resource_type($search) == Ldap::RESOURCE_RESULT)
 			{
 				$this->_search = $search;
+				$this->_filter = $filter;
 				$this->_result = @ldap_get_entries($this->_ldap->get_connection(), $this->_search);
 
 				if (isset($this->_result['count']))
