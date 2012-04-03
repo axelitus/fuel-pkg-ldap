@@ -149,7 +149,7 @@ class Ldap_Query
 				if (is_resource($sr) && get_resource_type($sr) == Ldap::RESOURCE_RESULT)
 				{
 					// load the Ldap_Query_Result object
-					$return->load($sr);
+					$return->load($sr, $filter);
 				}
 				else
 				{
