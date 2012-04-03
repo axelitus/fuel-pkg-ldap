@@ -80,6 +80,11 @@ class Ldap_Query_Result_Formatter
 	const FORMAT_SORT_BY_VALUES = 64;
 
 	/**
+	 * @var int = 128 Tells the formatter to strip the __attributes array
+	 */
+	const FORMAT_NO_ATTRIBUTES_ARRAY = 128;
+
+	/**
 	 * Prevent direct instantiation.
 	 */
 	private function __construct()
@@ -204,6 +209,13 @@ class Ldap_Query_Result_Formatter
 						$return = static::format_sort_by_values_root($return);
 					break;
 				}
+			}
+
+			// Format: No Attributes Array
+			// Works For All Levels
+			if (static::is_flag_on($flags, self::FORMAT_NO_ATTRIBUTES_ARRAY))
+			{
+				$return = static::format_no_attributes_array($return);
 			}
 		}
 
@@ -508,6 +520,18 @@ class Ldap_Query_Result_Formatter
 		foreach($keys as $key)
 		{
 			$return[$key] = $unsortables[$key];
+		}
+
+		return $return;
+	}
+
+	private static function format_no_attributes_array(array $array)
+	{
+		$return = $array;
+		
+		foreach($return as &$item)
+		{
+			unset($item['__attributes']);
 		}
 
 		return $return;
